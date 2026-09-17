@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="전광판 사각 프레임의 부재 수량, 절단 길이와 예상 중량을 계산합니다.">
+  <title>전광판 구조물 계산기</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2316243a'/%3E%3Cpath d='M7 8h18v16H7zM16 8v16M7 16h18' fill='none' stroke='%23ffb45b' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="./calculator.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">▦</span><span>전광판 구조물 계산기</span><span class="badge">기본 초안</span></div><span class="top-note">수량 · 절단 길이 · 예상 중량</span></header>
+  <main>
+    <div class="page-heading"><div><p class="eyebrow">FRAME CALCULATOR / 01</p><h1>사각 프레임 산출</h1><p class="intro">크기와 보강재 개수를 입력해 자재 물량을 확인하세요.</p></div><button id="reset" class="button secondary" type="button">예시값으로 초기화</button></div>
+    <div class="workspace">
+      <aside class="input-panel">
+        <form id="inputs" novalidate>
+          <fieldset><legend><span class="step">01</span> 구조물 크기</legend><p class="helper">프레임 완성품의 바깥 치수입니다.</p>
+            <div class="field"><label for="width">가로</label><div class="input-unit"><input id="width" name="width" type="number" min="100" max="100000" step="1" value="4000" required><span>mm</span></div></div>
+            <div class="field"><label for="height">세로</label><div class="input-unit"><input id="height" name="height" type="number" min="100" max="100000" step="1" value="2000" required><span>mm</span></div></div>
+            <div class="field"><label for="frames">제작 수량</label><div class="input-unit"><input id="frames" name="frames" type="number" min="1" max="1000" step="1" value="1" required><span>대</span></div></div>
+          </fieldset>
+          <fieldset><legend><span class="step">02</span> 각관 규격</legend>
+            <div class="field"><label for="section">규격 선택</label><select id="section" name="section"><option value="50">50 × 50 × 2.3t</option><option value="75">75 × 75 × 3.2t</option><option value="100">100 × 100 × 3.2t</option><option value="custom">직접 입력</option></select></div>
+            <div class="field"><label for="face">정면에서 보이는 부재 폭</label><div class="input-unit"><input id="face" name="face" type="number" min="1" max="1000" step="0.1" value="50" required><span>mm</span></div></div>
+            <div class="field"><label for="unitWeight">단위중량</label><div class="input-unit"><input id="unitWeight" name="unitWeight" type="number" min="0.001" max="10000" step="0.001" value="3.44" required><span>kg/m</span></div></div>
+            <p class="helper">선택 규격의 중량은 예시값입니다. 실제 산출 시 납품업체의 kg/m 값을 입력하세요. 외곽과 보강재에 같은 규격을 적용합니다.</p>
+          </fieldset>
+          <fieldset><legend><span class="step">03</span> 내부 보강재</legend><p class="helper">외곽재를 제외한 개수이며, 균등하게 배치합니다.</p>
+            <div class="field"><label for="vertical">세로 보강재</label><div class="input-unit"><input id="vertical" name="vertical" type="number" min="0" max="100" step="1" value="3" required><span>개</span></div></div>
+            <div class="field"><label for="horizontal">가로 보강재 열</label><div class="input-unit"><input id="horizontal" name="horizontal" type="number" min="0" max="100" step="1" value="1" required><span>열</span></div></div>
+            <div class="field"><label for="equipment">전광판·기타 중량 / 대</label><div class="input-unit"><input id="equipment" name="equipment" type="number" min="0" max="1000000" step="0.1" value="0" required><span>kg</span></div></div>
+            <p class="helper">전광판, 부속품 등의 중량을 알면 합산할 수 있습니다.</p>
+          </fieldset>
+        </form>
+      </aside>
+      <section class="results" aria-label="계산 결과">
+        <p id="error" class="error" role="alert" hidden></p>
+        <div class="metrics" aria-live="polite" aria-atomic="true">
+          <div class="metric featured"><p>전체 예상 중량</p><div><strong id="totalWeight">—</strong><span>kg</span></div><small id="weightDetail">프레임 + 전광판·기타</small></div>
+          <div class="metric"><p>각관 총길이</p><div><strong id="totalLength">—</strong><span>m</span></div><small>제작 수량 전체 기준</small></div>
+          <div class="metric"><p>부재 총수량</p><div><strong id="totalPieces">—</strong><span>개</span></div><small>절단 후 개별 부재 기준</small></div>
+        </div>
+        <section class="drawing-panel" aria-labelledby="drawingTitle"><div class="drawing-heading"><h2 id="drawingTitle">프레임 배치도</h2><span>정면 · 1대 기준</span></div><div id="drawing" class="drawing"></div><div class="drawing-footer"><span><i class="legend-line outer"></i>외곽재 <i class="legend-line inner"></i>보강재</span><span id="area">—</span></div></section>
+        <section class="table-panel" aria-labelledby="tableTitle"><div class="section-heading"><div><h2 id="tableTitle">자재 산출표</h2><p id="tableSubtitle">제작 수량 전체 기준</p></div><button id="download" class="button primary" type="button">CSV 내려받기</button></div>
+          <div class="table-scroll"><table><caption class="sr-only">부재별 절단 길이, 수량, 총길이, 예상 중량</caption><thead><tr><th scope="col">부재</th><th scope="col">절단 길이 <small>mm</small></th><th scope="col">수량 <small>개</small></th><th scope="col">총길이 <small>m</small></th><th scope="col">중량 <small>kg</small></th></tr></thead><tbody id="rows"></tbody><tfoot><tr><th scope="row">각관 합계</th><td>—</td><td id="sumPieces">—</td><td id="sumLength">—</td><td id="sumWeight">—</td></tr></tfoot></table></div>
+        </section>
+        <details class="assumptions" open><summary>계산 기준과 포함 범위</summary><ul><li>단일 평면 프레임입니다. 외곽 세로재는 전체 높이, 외곽 가로재는 양쪽 세로재 사이의 길이로 계산합니다.</li><li>세로 보강재는 위·아래 외곽재 사이에 연결하며, 가로 보강재는 세로재 사이에서 나누어 연결합니다. 교차부 길이는 중복 합산하지 않습니다.</li><li>중량 = 총길이(m) × 입력 단위중량(kg/m). 화면의 반올림 전 값으로 합산합니다.</li><li>후면 프레임·깊이 연결재·지주·판재·볼트·용접량 및 절단 손실은 자동 산출에 포함되지 않습니다. 구매 본수와 구조 안전성 검토는 별도입니다.</li></ul></details>
+      </section>
+    </div>
+    <footer>수량·중량 산출용 초안 <span>입력 치수: mm · 산출 중량: kg</span></footer>
+  </main>
+</body>
+</html>
