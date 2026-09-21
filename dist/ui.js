@@ -27,66 +27,122 @@ function drawProfile(){
   if(p){const source=engine.sources[p.source];const a=document.createElement('a');a.href=source.url;a.target='_blank';a.rel='noopener noreferrer';a.textContent=source.label;$('profileSource').append('단위중량 출처: ',a,document.createTextNode(' · 공급사 규격표 참고값'));}
   else $('profileSource').textContent='사용자 지정 치수·단위중량을 적용합니다. 단면 그림은 선택 종류의 형태만 나타냅니다.';
 }
-function readInput(){return Object.fromEntries(Object.keys(engine.defaults).map(k=>[k,$(k).value.trim()===''?NaN:Number($(k).value)]));}
+const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const color=code=>colors[code[0]]||'#506d9b';
+function buildMemberCards(overrides={}){
+  const options='<option value="inherit">기본 규격 사용</option>'+Object.entries(engine.families).filter(([f])=>f!=='custom').map(([f,name])=>`<optgroup label="${name}">${Object.entries(engine.presets).filter(([,p])=>p.family===f).map(([id,p])=>`<option value="${id}">${p.label} · ${p.unitWeight} kg/m</option>`).join('')}<option value="custom:${f}">${name} · 직접 입력</option></optgroup>`).join('')+'<option value="custom:custom">기타 · 직접 입력</option>';
+  $('memberCards').innerHTML=Object.entries(engine.roles).map(([role,name],i)=>`<div class="member-card" id="card-${role}" data-side="${i>=6}"><label class="member-name" for="member-${role}"><span class="part-code" style="background:${color(engine.roleCodes[role])}">${engine.roleCodes[role]}</span>${name}</label><select id="member-${role}" data-role="${role}" data-prop="section">${options}</select><div class="member-fields" id="fields-${role}" hidden><label>놓는 방향<select id="rotation-${role}" data-role="${role}" data-prop="rotation" aria-label="${name} 방향"><option value="0">기본 방향</option><option value="1">90° 회전</option></select></label>${[['face','정면 폭 b','mm'],['sectionDepth','깊이 폭 d','mm'],['unitWeight','단위중량','kg/m'],['stockLength','원자재 1본','mm']].map(([k,label,unit])=>`<label>${label} (${unit})<input id="${k}-${role}" data-role="${role}" data-prop="${k}" type="number" step="any" min="${engine.limits[k][0]}" max="${engine.limits[k][1]}" aria-label="${name} ${label}"></label>`).join('')}<label id="name-field-${role}" class="material-name">직접 입력 규격 구분 이름<input id="materialName-${role}" data-role="${role}" data-prop="materialName" maxlength="60" placeholder="예: SS400 50×50×3.2t" aria-label="${name} 규격 구분 이름"></label><p class="member-source" id="source-${role}"></p></div><p class="member-summary" id="summary-${role}"></p></div>`).join('');
+  for(const[role,p]of Object.entries(overrides)){
+    $('member-'+role).value=p.section==='custom'?'custom:'+p.family:p.section;
+    for(const k of ['rotation','face','sectionDepth','unitWeight','stockLength','materialName'])$(k+'-'+role).value=p[k]??'';
+  }
+}
+function readInput(){
+  const input=Object.fromEntries(Object.keys(engine.defaults).map(k=>[k,$(k).value.trim()===''?NaN:Number($(k).value)]));
+  input.baseProfile={family:$('family').value,section:$('section').value,rotation:Number($('rotation').value)};
+  input.members={};
+  for(const role of Object.keys(engine.roles)){
+    const selected=$('member-'+role).value;
+    if(selected==='inherit')continue;
+    const p={section:selected.startsWith('custom:')?'custom':selected,family:engine.presets[selected]?.family||selected.split(':')[1],materialName:$('materialName-'+role).value};
+    for(const key of ['rotation','face','sectionDepth','unitWeight','stockLength'])p[key]=$(key+'-'+role).value.trim()===''?NaN:Number($(key+'-'+role).value);
+    input.members[role]=p;
+  }
+  return input;
+}
+function syncMemberFields(){
+  for(const role of Object.keys(engine.roles)){
+    const selected=$('member-'+role).value,inherit=selected==='inherit',p=engine.presets[selected];
+    $('fields-'+role).hidden=inherit;$('name-field-'+role).hidden=!selected.startsWith('custom:');
+    $('card-'+role).hidden=$('card-'+role).dataset.side==='true'&&$('planes').value!=='2';
+    $('source-'+role).innerHTML=p?`단위중량 출처: <a href="${engine.sources[p.source].url}" target="_blank" rel="noopener noreferrer">${esc(engine.sources[p.source].label)}</a>`:'';
+  }
+}
+function onMemberInput(e){
+  const role=e.target.dataset.role,key=e.target.dataset.prop;if(!role)return;
+  const select=$('member-'+role),value=select.value;
+  if(key==='section'&&value!=='inherit'){
+    $('rotation-'+role).value='0';
+    const p=engine.presets[value]?engine.presetValues(value,0):{face:Number($('face').value),sectionDepth:Number($('sectionDepth').value),unitWeight:Number($('unitWeight').value)};
+    for(const[k,n]of Object.entries(p))$(k+'-'+role).value=n;
+    $('stockLength-'+role).value=$('stockLength').value;$('materialName-'+role).value='';
+  }
+  if(['face','sectionDepth','unitWeight'].includes(key)&&engine.presets[value])select.value='custom:'+engine.presets[value].family;
+  if(key==='rotation'){
+    const p=engine.presets[value]?engine.presetValues(value,Number(e.target.value)):{face:Number($('sectionDepth-'+role).value),sectionDepth:Number($('face-'+role).value)};
+    for(const[k,n]of Object.entries(p))$(k+'-'+role).value=n;
+  }
+  render();
+}
 function draw(result){
-  const v=result.input,scale=Math.min(570/v.width,218/v.height),w=v.width*scale,h=v.height*scale,b=v.face*scale,x=(740-w)/2,y=43+(218-h)/2;
-  const rect=(rx,ry,rw,rh,color)=>`<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${color}"/>`;
-  let members=rect(x,y,b,h,'#dfebfa')+rect(x+w-b,y,b,h,'#dfebfa')+rect(x+b,y,w-2*b,b,'#dfebfa')+rect(x+b,y+h-b,w-2*b,b,'#dfebfa');
-  const bay=result.clearWidth*scale;
-  for(let i=0;i<v.vertical;i++)members+=rect(x+b+bay*(i+1)+b*i,y+b,b,h-2*b,'#ffbc6f');
-  for(let j=0;j<v.horizontal;j++){const hy=y+b+result.clearHeight*scale*(j+1)+b*j;for(let i=0;i<=v.vertical;i++)members+=rect(x+b+(bay+b)*i,hy,bay,b,'#ffbc6f');}
-  const line=(x1,y1,x2,y2)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#92a8c3" stroke-width="1"/>`;
+  const v=result.input,m=result.members,g=result.geometry,s=Math.min(570/v.width,218/v.height),w=v.width*s,h=v.height*s,x=(740-w)/2,y=43+(218-h)/2;
+  const rect=(rx,ry,rw,rh,code)=>`<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="${code}"/>`;
+  const left=m.outerLeft.face*s,right=m.outerRight.face*s,top=m.outerTop.face*s,bottom=m.outerBottom.face*s,vb=m.innerVertical.face*s,hb=m.innerHorizontal.face*s,bay=g.clearWidth*s;
+  let members=rect(x,y,left,h,'#dfebfa')+rect(x+w-right,y,right,h,'#dfebfa')+rect(x+left,y,w-left-right,top,'#dfebfa')+rect(x+left,y+h-bottom,w-left-right,bottom,'#dfebfa');
+  for(let i=0;i<v.vertical;i++)members+=rect(x+left+bay*(i+1)+vb*i,y+top,vb,h-top-bottom,'#ffbc6f');
+  for(let j=0;j<v.horizontal;j++)for(let i=0;i<=v.vertical;i++)members+=rect(x+left+(bay+vb)*i,y+top+g.clearHeight*s*(j+1)+hb*j,bay,hb,'#ffbc6f');
+  const line=(a,b,c,d)=>`<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" stroke="#92a8c3"/>`;
   const dims=line(x,y-18,x+w,y-18)+line(x,y-25,x,y-7)+line(x+w,y-25,x+w,y-7)+line(x-24,y,x-24,y+h)+line(x-31,y,x-12,y)+line(x-31,y+h,x-12,y+h);
-  $('drawing').innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 310" role="img" aria-label="가로 ${v.width}mm, 세로 ${v.height}mm. 세로 보강재 ${v.vertical}개, 가로 보강재 ${v.horizontal}열인 프레임 정면 배치도"><g>${members}${dims}</g><g fill="#d4e1f0" font-family="system-ui,sans-serif" font-size="14"><text x="370" y="${y-27}" text-anchor="middle">${fmt(v.width,0)} mm</text><text transform="translate(${x-36},${y+h/2}) rotate(-90)" text-anchor="middle">${fmt(v.height,0)} mm</text><text x="370" y="${Math.min(296,y+h+30)}" text-anchor="middle" fill="#9bb2ce" font-size="13">${v.vertical+1}칸 × ${v.horizontal+1}칸 · 균등 배치</text></g></svg>`;
-  $('drawingView').textContent=v.planes===2?'정면 + 좌우 측면도 · 1대 기준':'정면 · 1대 기준';
-  $('sideDrawing').hidden=v.planes!==2;
+  $('drawing').innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 310" role="img" aria-label="정면 배치도. 가로 ${v.width}mm, 세로 ${v.height}mm, 부위별 규격 반영">${members}${dims}<g fill="#d4e1f0" font-family="system-ui,sans-serif" font-size="14"><text x="370" y="${y-27}" text-anchor="middle">${fmt(v.width,0)} mm</text><text transform="translate(${x-36},${y+h/2}) rotate(-90)" text-anchor="middle">${fmt(v.height,0)} mm</text><text x="370" y="${Math.min(296,y+h+30)}" text-anchor="middle" fill="#9bb2ce" font-size="13">${v.vertical+1}칸 × ${v.horizontal+1}칸 · 균등 배치</text></g></svg>`;
+  $('drawingView').textContent=v.planes===2?'정면 + 좌우 측면도 · 1대 기준':'정면 · 1대 기준';$('sideDrawing').hidden=v.planes!==2;
   if(v.planes===2){
-    const s=Math.min(240/v.depth,196/v.height),sw=v.depth*s,sh=v.height*s,sb=v.face*s,sd=v.sectionDepth*s;
-    const panel=(center,title)=>{const sx=center-sw/2,sy=62+(196-sh)/2;let parts=rect(sx,sy,sd,sh,'#dfebfa')+rect(sx+sw-sd,sy,sd,sh,'#dfebfa')+rect(sx+sd,sy,sw-2*sd,sb,'#69b6b2')+rect(sx+sd,sy+sh-sb,sw-2*sd,sb,'#69b6b2');
-      for(let i=0;i<v.sideVertical;i++)parts+=rect(sx+sd+(result.sideClearDepth*s+sd)*i+result.sideClearDepth*s,sy+sb,sd,sh-2*sb,'#b2a6e2');
-      for(let j=0;j<v.sideHorizontal;j++)for(let i=0;i<=v.sideVertical;i++)parts+=rect(sx+sd+(result.sideClearDepth*s+sd)*i,sy+sb+(result.sideClearHeight*s+sb)*j+result.sideClearHeight*s,result.sideClearDepth*s,sb,'#eda6d1');
-      return `<text x="${center}" y="25" text-anchor="middle" fill="#e1eaf6" font-size="15">${title}</text><text x="${center}" y="48" text-anchor="middle" fill="#b9cbe0" font-size="13">깊이 ${fmt(v.depth,1)} mm</text>${parts}<text x="${center}" y="285" text-anchor="middle" fill="#b9cbe0" font-size="12">세로 ${v.sideVertical}개 · 가로 ${v.sideHorizontal}열</text>`;};
-    $('sideDrawing').innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 310" role="img" aria-label="좌우 측면도. 전체 깊이 ${v.depth}mm. 한쪽당 세로 보강재 ${v.sideVertical}개, 가로 보강재 ${v.sideHorizontal}열. 흰색 앞뒤 프레임, 청록색 모서리 연결재, 보라색 세로 보강재, 분홍색 가로 보강재." font-family="system-ui,sans-serif">${panel(195,'좌측면')}${panel(545,'우측면')}</svg><p>흰색: 기존 앞뒤 프레임 · 청록: 모서리 연결재 · 보라: 측면 세로재 · 분홍: 측면 가로재</p>`;
+    const scale=Math.min(240/v.depth,196/v.height),sw=v.depth*scale,sh=v.height*scale;
+    const panel=(side,center)=>{
+      const a=g.sides[side],edge=m['outer'+side].sectionDepth*scale,vt=m['side'+side+'Vertical'].sectionDepth*scale,ht=m['side'+side+'Horizontal'].face*scale,t=m.depthTop.face*scale,b=m.depthBottom.face*scale,sx=center-sw/2,sy=62+(196-sh)/2;
+      let shapes=rect(sx,sy,edge,sh,'#dfebfa')+rect(sx+sw-edge,sy,edge,sh,'#dfebfa')+rect(sx+edge,sy,sw-2*edge,t,'#69b6b2')+rect(sx+edge,sy+sh-b,sw-2*edge,b,'#69b6b2');
+      for(let i=0;i<v.sideVertical;i++)shapes+=rect(sx+edge+(a.clearDepth*scale+vt)*i+a.clearDepth*scale,sy+t,vt,sh-t-b,'#b2a6e2');
+      for(let j=0;j<v.sideHorizontal;j++)for(let i=0;i<=v.sideVertical;i++)shapes+=rect(sx+edge+(a.clearDepth*scale+vt)*i,sy+t+(a.clearHeight*scale+ht)*j+a.clearHeight*scale,a.clearDepth*scale,ht,'#eda6d1');
+      return `<text x="${center}" y="25" text-anchor="middle" fill="#e1eaf6" font-size="15">${side==='Left'?'좌':'우'}측면</text><text x="${center}" y="48" text-anchor="middle" fill="#b9cbe0" font-size="13">깊이 ${fmt(v.depth,1)} mm</text>${shapes}<text x="${center}" y="285" text-anchor="middle" fill="#b9cbe0" font-size="12">세로 ${v.sideVertical}개 · 가로 ${v.sideHorizontal}열</text>`;
+    };
+    $('sideDrawing').innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 310" role="img" aria-label="좌우 측면도. 상단·하단 및 좌우 부재 규격 각각 반영" font-family="system-ui,sans-serif">${panel('Left',195)}${panel('Right',545)}</svg><p>흰색: 앞뒤 외곽재 · 청록: 상단·하단 연결재 · 보라: 측면 세로재 · 분홍: 측면 가로재</p>`;
   }
 }
 function renderPurchase(result){
-  const p=result.purchase,v=result.input,ready=p.status==='ready';
-  $('purchaseContent').hidden=!ready;$('purchaseWarning').hidden=ready;
-  if(!ready){$('purchaseWarning').textContent=p.message;return;}
+  const p=result.purchase,ready=p.status==='ready';$('purchaseContent').hidden=!ready;$('purchaseWarning').hidden=ready;
+  if(!ready){$('purchaseWarning').textContent=p.message;$('purchasePeek').textContent='원자재 조건을 확인하세요.';return;}
+  $('purchasePeek').textContent=`원자재 ${fmt(p.stockCount,0)}본 = 기본 ${fmt(p.baseStockCount,0)} + 연장 추가 ${fmt(p.additionalStockCount,0)} · 연장 조각 ${fmt(p.extensionLength,2)} m`;
   $('stockCount').textContent=`${fmt(p.stockCount,0)} 본`;$('purchaseWeight').textContent=`${fmt(p.purchaseWeight,1)} kg`;$('utilization').textContent=`${fmt(p.utilization,1)} %`;
-  $('lossSummary').textContent=`구매 ${fmt(p.grossLength,3)} m = 부재 ${fmt(result.totalLength,3)} m + 톱날 손실 ${fmt(p.kerfLoss,3)} m + 양끝 정리 ${fmt(p.trimLoss,3)} m + 잔재 ${fmt(p.remainder,3)} m`;
+  $('stockBreakdown').textContent=`기본 ${fmt(p.baseStockCount,0)}본 + 연장용 추가 ${fmt(p.additionalStockCount,0)}본 = 총 ${fmt(p.stockCount,0)}본`;
+  $('lossSummary').textContent=`구매 ${fmt(p.grossLength,3)} m = 완성 부재 ${fmt(result.totalLength,3)} m + 겹침 ${fmt(p.overlapLength,3)} m + 톱날 ${fmt(p.kerfLoss,3)} m + 양끝 정리 ${fmt(p.trimLoss,3)} m + 잔재 ${fmt(p.remainder,3)} m`;
+  $('materialPurchases').innerHTML=`<table class="material-table"><caption class="sr-only">규격별 원자재 구매 수량</caption><thead><tr><th>규격</th><th>원자재<small>mm / 본</small></th><th>기본<small>본</small></th><th>연장 추가<small>본</small></th><th>총 구매<small>본</small></th><th>구매 중량<small>kg</small></th></tr></thead><tbody>${p.groups.map(g=>`<tr><th><span class="material-id">${g.id}</span><span class="wrap-label">${esc(g.label)}</span></th><td>${fmt(g.stockLength,0)}</td><td>${g.baseStockCount}</td><td>${g.additionalStockCount}</td><td><strong>${g.stockCount}</strong></td><td>${fmt(g.purchaseWeight,2)}</td></tr>`).join('')}</tbody></table>`;
+  $('extensionSummary').textContent=p.extensions.length?`연장 조각 ${fmt(p.extensionLength,3)} m · 이음 ${fmt(p.jointCount,0)}개소. 기본 본수의 잔재에서 ${fmt(p.reusedExtensionLength,3)} m를 활용하고, 부족분에 ${fmt(p.additionalStockCount,0)}본을 추가합니다.`:'원자재보다 긴 부재가 없습니다. 연장용 추가 본수는 0본입니다.';
+  $('extensionRows').innerHTML=p.extensions.length?`<table><caption class="sr-only">부재별 연장 길이와 분할 수량</caption><thead><tr><th>부재 · 규격</th><th>완성 길이<small>mm / 개</small></th><th>수량<small>개</small></th><th>1개당 분할 길이<small>mm × 조각 수</small></th><th>연장 조각 합계<small>m / 전체 수량</small></th></tr></thead><tbody>${p.extensions.map(e=>`<tr><th>${esc(e.name)}<small>${e.groupId} · ${e.code}</small></th><td>${fmt(e.length,1)}</td><td>${e.count}</td><td>${e.segments.map(s=>`${fmt(s.length,1)} × ${s.count}`).join(' + ')}<small>1개당 연장 ${fmt(e.extensionCutLength,1)} mm · 이음 ${e.jointsPerPiece}개소</small></td><td>${fmt(e.totalExtensionLength,3)}</td></tr>`).join('')}</tbody></table><p class="extension-note">첫 조각은 원자재에서 양끝 정리 여유를 뺀 길이입니다. 분할 길이는 물량 산출용이며 이음 위치·접합 상세는 제작 도면으로 확정하세요.</p>`:'';
   $('patternCount').textContent=`${p.patterns.length}가지`;
   $('cutPatterns').innerHTML=p.patterns.map((pattern,i)=>{
-    const bar=pattern.cuts.map(c=>`<span style="width:${100*c.length*c.count/v.stockLength}%;background:${colors[c.code]}" title="${c.name} ${fmt(c.length,3)}mm × ${c.count}개">${c.code}</span>`).join('');
-    const trim=pattern.trimLoss/v.stockLength*100,loss=pattern.kerfLoss/v.stockLength*100,remainder=pattern.remainder/v.stockLength*100;
-    return `<div class="cut-pattern"><div class="pattern-heading"><strong>패턴 ${i+1} <span>× ${fmt(pattern.repeat,0)}본</span></strong><span>1본당 잔재 ${fmt(pattern.remainder,1)} mm</span></div><div class="cut-bar" aria-hidden="true"><span style="width:${trim}%" class="cut-waste"></span>${bar}<span class="cut-waste" style="width:${loss}%"></span><span class="cut-remainder" style="width:${remainder}%"></span></div><p class="cut-labels">${pattern.cuts.map(c=>`<span><i style="background:${colors[c.code]}">${c.code}</i> ${fmt(c.length,3)} mm × ${c.count}개</span>`).join('')}</p></div>`;
+    const bar=pattern.cuts.map(c=>`<span style="width:${100*c.length*c.count/pattern.stockLength}%;background:${color(c.code)}" title="${esc(c.name)} ${c.extension?'연장':'본체'} ${fmt(c.length,3)}mm × ${c.count}개">${c.code}${c.extension?'+':''}</span>`).join('');
+    return `<div class="cut-pattern"><div class="pattern-heading"><strong>${pattern.groupId} · 패턴 ${i+1} <span>× ${fmt(pattern.repeat,0)}본 · ${pattern.extensionOnly?'연장용 추가':'기본 본수'}</span></strong><span>잔재 ${fmt(pattern.remainder,1)} mm / 본</span></div><div class="cut-bar" aria-hidden="true"><span style="width:${100*pattern.trimLoss/pattern.stockLength}%" class="cut-waste"></span>${bar}<span class="cut-waste" style="width:${100*pattern.kerfLoss/pattern.stockLength}%"></span><span class="cut-remainder" style="width:${100*pattern.remainder/pattern.stockLength}%"></span></div><p class="cut-labels">${pattern.cuts.map(c=>`<span><i style="background:${color(c.code)}">${c.code}${c.extension?'+':''}</i> ${c.extension?'연장 ':''}${fmt(c.length,3)} mm × ${c.count}개</span>`).join('')}</p></div>`;
   }).join('');
 }
 function render(){
-  const two=$('planes').value==='2';$('depthField').hidden=!two;$('depthHint').hidden=!two;$('sideFields').hidden=!two;drawProfile();
+  const two=$('planes').value==='2';$('depthField').hidden=!two;$('depthHint').hidden=!two;$('sideFields').hidden=!two;drawProfile();syncMemberFields();
   for(const key of Object.keys(engine.defaults))$(key).removeAttribute('aria-invalid');
   try{
     const input=readInput();
     if(!two&&(!Number.isFinite(input.depth)||input.depth<1||input.depth>100000))input.depth=engine.defaults.depth;
-    if(!two)for(const k of ['sideVertical','sideHorizontal'])if(!Number.isInteger(input[k])||input[k]<0||input[k]>100)input[k]=engine.defaults[k];
     for(const[key,[min,max,integer]]of Object.entries(engine.limits))if(!Number.isFinite(input[key])||input[key]<min||input[key]>max||(integer&&!Number.isInteger(input[key])))$(key).setAttribute('aria-invalid','true');
     current=engine.calculate(input);$('error').hidden=true;$('download').disabled=false;$('save').disabled=false;
     $('totalWeight').textContent=fmt(current.totalWeight,1);$('mobileWeight').textContent=`${fmt(current.totalWeight,1)} kg`;$('totalLength').textContent=fmt(current.totalLength);$('totalPieces').textContent=fmt(current.totalPieces,0);
-    $('weightDetail').textContent=`부재 ${fmt(current.frameWeight,1)} + 기타 ${fmt(current.equipmentWeight,1)} kg`;
+    $('weightDetail').textContent=`부재 ${fmt(current.frameWeight,1)} + 기타 ${fmt(current.equipmentWeight,1)} kg${input.spliceAllowance?' · 겹침 중량 포함':''}`;
     $('area').textContent=`전면 면적 ${fmt(current.area)} m² / 대`;
-    $('tableSubtitle').textContent=`${fmt(input.frames,0)}대 · ${input.planes===2?'앞뒤 + 좌우 측면':'단면 1면'} · ${sectionLabel()} · ${fmt(input.unitWeight,3)} kg/m`;
-    $('rows').innerHTML=current.rows.map(r=>`<tr><th scope="row"><span class="part-code" style="background:${colors[r.code]}">${r.code}</span>${r.name}</th><td>${fmt(r.length,3)}</td><td>${fmt(r.count,0)}</td><td>${fmt(r.totalLength,3)}</td><td>${fmt(r.weight,2)}</td></tr>`).join('');
+    $('tableSubtitle').textContent=`${fmt(input.frames,0)}대 · ${two?'앞뒤 + 좌우 측면':'단면 1면'} · 구매 규격 ${current.purchase.groups.length}종`;
+    $('rows').innerHTML=current.rows.map(r=>`<tr><th scope="row"><span class="part-code" style="background:${color(r.code)}">${r.code}</span>${esc(r.name)}<small class="row-material">${r.groupId} · ${esc(r.materialLabel)} · b ${r.profile.face} / d ${r.profile.sectionDepth}</small></th><td>${fmt(r.length,3)}${r.jointCount?'<small>연장 이음 포함</small>':''}</td><td>${fmt(r.count,0)}</td><td>${fmt(r.totalLength,3)}</td><td>${fmt(r.weight,2)}</td></tr>`).join('');
+    for(const[role,p]of Object.entries(current.members))$('summary-'+role).textContent=`${$('member-'+role).value==='inherit'?'기본 · ':''}${engine.materialLabel(p)} / ${fmt(p.stockLength,0)} mm 원자재`;
     $('sumPieces').textContent=fmt(current.totalPieces,0);$('sumLength').textContent=fmt(current.totalLength,3);$('sumWeight').textContent=fmt(current.frameWeight,2);draw(current);renderPurchase(current);
   }catch(e){
-    current=null;$('error').textContent=e.message;$('error').hidden=false;$('download').disabled=true;$('save').disabled=true;
+    current=null;$('error').textContent=e.message;$('error').hidden=false;$('download').disabled=true;$('save').disabled=true;$('purchasePeek').textContent='입력값을 확인하세요.';
     ['totalWeight','totalLength','totalPieces','sumPieces','sumLength','sumWeight','mobileWeight'].forEach(id=>$(id).textContent='—');
     $('weightDetail').textContent='입력값을 확인하세요';$('rows').replaceChildren();$('drawing').textContent='유효한 치수를 입력하면 배치도가 표시됩니다.';$('sideDrawing').hidden=true;$('area').textContent='—';$('tableSubtitle').textContent='입력값 확인 필요';$('purchaseContent').hidden=true;$('purchaseWarning').textContent='입력값을 확인하면 구매 본수를 계산합니다.';$('purchaseWarning').hidden=false;
+    for(const role of Object.keys(engine.roles))$('summary-'+role).textContent='입력값 확인 필요';
   }
 }
-function applyInput(input,section='custom',family='custom',rotation=0){for(const[k,v]of Object.entries(input))if(k in engine.defaults)$(k).value=v;$('family').value=engine.presets[section]?.family||family;$('rotation').value=rotation;sectionOptions($('family').value,section);render();}
+function applyInput(input,section='custom',family='custom',rotation=0){
+  for(const[k,value]of Object.entries(engine.defaults))$(k).value=input[k]??value;
+  $('family').value=engine.presets[section]?.family||family;$('rotation').value=rotation;sectionOptions($('family').value,section);buildMemberCards(input.members);render();
+}
 function status(message,isError=false){$('projectStatus').textContent=message;$('projectStatus').hidden=false;$('projectStatus').classList.toggle('is-error',isError);}
 function downloadFile(text,type,name){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
 $('inputs').addEventListener('submit',e=>e.preventDefault());
+$('memberCards').addEventListener('input',onMemberInput);
 $('inputs').addEventListener('input',e=>{
   const id=e.target.id;
   if(['face','sectionDepth','unitWeight'].includes(id))$('section').value='custom';
@@ -97,10 +153,12 @@ $('inputs').addEventListener('input',e=>{
 });
 $('reset').addEventListener('click',()=>{applyInput(engine.defaults,'50');status('예시값으로 초기화했습니다.');});
 $('download').addEventListener('click',()=>{if(current)downloadFile(engine.toCSV(current,sectionLabel()),'text/csv;charset=utf-8',`전광판_자재산출_${current.input.width}x${current.input.height}_${current.input.frames}대.csv`);});
-$('save').addEventListener('click',()=>{if(!current)return;downloadFile(JSON.stringify({type:'led-frame-project',version:3,family:$('family').value,section:$('section').value,rotation:Number($('rotation').value),input:current.input},null,2),'application/json',`전광판_설정_${current.input.width}x${current.input.height}.json`);status('설정 파일 다운로드를 요청했습니다. 다음 작업 때 ‘설정 불러오기’로 이어서 계산할 수 있습니다.');});
+$('save').addEventListener('click',()=>{if(!current)return;downloadFile(JSON.stringify({type:'led-frame-project',version:4,family:$('family').value,section:$('section').value,rotation:Number($('rotation').value),input:current.input},null,2),'application/json',`전광판_설정_${current.input.width}x${current.input.height}.json`);status('부위별 규격과 연장 조건을 포함한 설정 파일 다운로드를 요청했습니다.');});
 $('load').addEventListener('click',()=>$('projectFile').click());
-$('projectFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>100000)throw new Error('설정 파일은 100KB 이하만 불러올 수 있습니다.');const project=engine.parseProject(await file.text());applyInput(project.input,project.section,project.family,project.rotation);status('저장한 설정을 불러왔습니다.');}catch(err){status(`${err.message} 기존 입력값은 유지됩니다.`,true);}finally{e.target.value='';}});
+$('projectFile').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>100000)throw new Error('설정 파일은 100KB 이하만 불러올 수 있습니다.');const p=engine.parseProject(await file.text());applyInput(p.input,p.section,p.family,p.rotation);status('저장한 부위별 규격과 설정을 불러왔습니다.');}catch(err){status(`${err.message} 기존 입력값은 유지됩니다.`,true);}finally{e.target.value='';}});
 applyInput(engine.defaults,'50');
 if(document.modelContext?.registerTool){
-  try{Promise.resolve(document.modelContext.registerTool({name:'calculate_frame',title:'프레임 수량·중량과 구매 본수 계산',description:'치수와 절단 조건을 입력해 화면을 갱신하고 부재 수량, 중량, 참고 구매 본수를 반환합니다. 구조 안전성 검토는 포함하지 않습니다.',inputSchema:{type:'object',properties:Object.fromEntries(Object.entries(engine.limits).map(([k,[min,max,integer]])=>[k,{type:integer?'integer':'number',minimum:min,maximum:max,description:engine.labels[k]}])),required:Object.keys(engine.defaults),additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:false},execute(input){const verified=engine.calculate(input);applyInput(verified.input);return {totalWeight:current.totalWeight,frameWeight:current.frameWeight,totalLength:current.totalLength,totalPieces:current.totalPieces,rows:current.rows,purchase:current.purchase};}})).catch(()=>{});}catch{}
+  const numericSchema=Object.fromEntries(Object.entries(engine.limits).map(([k,[minimum,maximum,integer]])=>[k,{type:integer?'integer':'number',minimum,maximum,description:engine.labels[k]}]));
+  const profileSchema={type:'object',properties:{section:{type:'string',enum:[...Object.keys(engine.presets),'custom']},family:{type:'string',enum:Object.keys(engine.families)},rotation:{type:'integer',enum:[0,1]},face:numericSchema.face,sectionDepth:numericSchema.sectionDepth,unitWeight:numericSchema.unitWeight,stockLength:numericSchema.stockLength,materialName:{type:'string',maxLength:60}},additionalProperties:false};
+  try{Promise.resolve(document.modelContext.registerTool({name:'calculate_frame',title:'부위별 규격·연장 길이·구매 본수 계산',description:'화면을 갱신하고 부위별 물량, 원자재를 초과한 연장 조각, 잔재 활용 및 추가 구매 본수를 계산합니다. 구조 안전성 검토는 포함하지 않습니다.',inputSchema:{type:'object',properties:{...numericSchema,baseProfile:profileSchema,members:{type:'object',properties:Object.fromEntries(Object.keys(engine.roles).map(role=>[role,profileSchema])),additionalProperties:false}},required:Object.keys(engine.defaults),additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:false},execute(input){const verified=engine.calculate(input),p=verified.input.baseProfile;applyInput(verified.input,p.section,p.family,p.rotation);return {totalWeight:current.totalWeight,totalLength:current.totalLength,totalPieces:current.totalPieces,rows:current.rows,purchase:current.purchase};}})).catch(()=>{});}catch{}
 }

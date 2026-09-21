@@ -13,7 +13,7 @@
 <body>
   <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">▦</span><span>전광판 구조물 계산기</span><span class="badge">기본 초안</span></div><span class="top-note">수량 · 절단 길이 · 예상 중량</span></header>
   <main>
-    <div class="page-heading"><div><p class="eyebrow">FRAME CALCULATOR / 03</p><h1>전광판 프레임 산출</h1><p class="intro">부재 종류와 깊이, 좌우 측면까지 반영해 물량을 확인하세요.</p></div><div class="project-actions"><button id="load" class="button secondary" type="button">설정 불러오기</button><button id="save" class="button secondary" type="button">설정 저장</button><button id="reset" class="button text-button" type="button">예시값 초기화</button><input id="projectFile" type="file" accept=".json,application/json" hidden></div></div>
+    <div class="page-heading"><div><p class="eyebrow">FRAME CALCULATOR / 04</p><h1>전광판 프레임 산출</h1><p class="intro">부위별 규격, 연장 길이와 원자재 구매 본수를 함께 계산합니다.</p></div><div class="project-actions"><button id="load" class="button secondary" type="button">설정 불러오기</button><button id="save" class="button secondary" type="button">설정 저장</button><button id="reset" class="button text-button" type="button">예시값 초기화</button><input id="projectFile" type="file" accept=".json,application/json" hidden></div></div>
     <p id="projectStatus" class="project-status" role="status" hidden></p>
     <div class="workspace">
       <aside class="input-panel">
@@ -35,7 +35,7 @@
             <div class="field"><label for="sectionDepth">깊이 방향으로 차지하는 폭 d</label><div class="input-unit"><input id="sectionDepth" name="sectionDepth" type="number" min="1" max="1000" step="0.1" value="50" required><span>mm</span></div></div>
             <div class="field"><label for="unitWeight">단위중량</label><div class="input-unit"><input id="unitWeight" name="unitWeight" type="number" min="0.001" max="10000" step="0.001" value="3.34" required><span>kg/m</span></div></div>
             <p id="profileSource" class="helper"></p>
-            <p class="helper">선택한 동일 규격을 모든 부재에 적용합니다. 실제 발주 규격·단위중량과 설치 방향을 확인하세요.</p>
+            <p class="helper">기본 규격입니다. 상단·하단·좌우 측면은 <a href="#memberSettings">부위별 규격 설정</a>에서 각각 변경할 수 있습니다.</p>
           </fieldset>
           <fieldset><legend><span class="step">03</span> 내부 보강재</legend><p class="helper">1면당 개수입니다. 외곽재를 제외하고 균등 배치합니다.</p>
             <div class="field"><label for="vertical">세로 보강재</label><div class="input-unit"><input id="vertical" name="vertical" type="number" min="0" max="100" step="1" value="3" required><span>개</span></div></div>
@@ -52,7 +52,8 @@
             <div class="field"><label for="stockLength">원자재 1본 길이</label><div class="input-unit"><input id="stockLength" name="stockLength" type="number" min="100" max="100000" step="0.1" value="6000" required><span>mm</span></div></div>
             <div class="field"><label for="kerf">절단 1회 톱날 손실</label><div class="input-unit"><input id="kerf" name="kerf" type="number" min="0" max="20" step="0.1" value="3" required><span>mm</span></div></div>
             <div class="field"><label for="endTrim">1본당 양끝 정리 여유 합계</label><div class="input-unit"><input id="endTrim" name="endTrim" type="number" min="0" max="1000" step="0.1" value="0" required><span>mm</span></div></div>
-            <p class="helper">초기값은 예시입니다. 사용하는 원자재와 절단 장비에 맞게 변경하세요.</p>
+            <div class="field"><label for="spliceAllowance">이음부당 겹침 여유</label><div class="input-unit"><input id="spliceAllowance" type="number" min="0" max="1000" step="0.1" value="0" required><span>mm</span></div></div>
+            <p class="helper">0mm는 맞댐 기준입니다. 원자재보다 긴 부재는 자동 분할하며, 같은 규격의 잔재를 연장 조각에 활용합니다.</p>
           </fieldset>
         </form>
       </aside>
@@ -61,20 +62,24 @@
         <div class="metrics" aria-live="polite" aria-atomic="true">
           <div class="metric featured"><p>전체 예상 중량</p><div><strong id="totalWeight">—</strong><span>kg</span></div><small id="weightDetail">프레임 + 전광판·기타</small></div>
           <div class="metric"><p>부재 총길이</p><div><strong id="totalLength">—</strong><span>m</span></div><small>제작 수량 전체 기준</small></div>
-          <div class="metric"><p>부재 총수량</p><div><strong id="totalPieces">—</strong><span>개</span></div><small>절단 후 개별 부재 기준</small></div>
+          <div class="metric"><p>부재 총수량</p><div><strong id="totalPieces">—</strong><span>개</span></div><small>이음 후 완성 부재 기준</small></div>
         </div>
+        <div class="procurement-peek"><span id="purchasePeek">원자재 본수를 계산합니다.</span><a href="#purchaseTitle">구매·연장 내역 보기 ↓</a></div>
         <section class="drawing-panel" aria-labelledby="drawingTitle"><div class="drawing-heading"><h2 id="drawingTitle">프레임 배치도</h2><span id="drawingView">정면 · 1대 기준</span></div><div id="drawing" class="drawing"></div><div id="sideDrawing" class="side-drawing" hidden></div><div class="drawing-footer"><span><i class="legend-line outer"></i>외곽재 <i class="legend-line inner"></i>보강재</span><span id="area">—</span></div></section>
+        <section id="memberSettings" class="member-panel" aria-labelledby="memberTitle"><div class="section-heading"><div><h2 id="memberTitle">부위별 규격 설정</h2><p>상단·하단과 좌우 부재를 각각 지정하세요. 앞뒤 프레임은 같은 설정을 사용합니다.</p></div></div><div id="memberCards" class="member-cards"></div></section>
         <section class="table-panel" aria-labelledby="tableTitle"><div class="section-heading"><div><h2 id="tableTitle">자재 산출표</h2><p id="tableSubtitle">제작 수량 전체 기준</p></div><button id="download" class="button primary" type="button">CSV 내려받기</button></div>
-          <div class="table-scroll"><table><caption class="sr-only">부재별 절단 길이, 수량, 총길이, 예상 중량</caption><thead><tr><th scope="col">부재</th><th scope="col">절단 길이 <small>mm</small></th><th scope="col">수량 <small>개</small></th><th scope="col">총길이 <small>m</small></th><th scope="col">중량 <small>kg</small></th></tr></thead><tbody id="rows"></tbody><tfoot><tr><th scope="row">부재 합계</th><td>—</td><td id="sumPieces">—</td><td id="sumLength">—</td><td id="sumWeight">—</td></tr></tfoot></table></div>
+          <div class="table-scroll"><table><caption class="sr-only">부재별 규격, 완성 길이, 수량, 총길이, 예상 중량</caption><thead><tr><th scope="col">부재 · 규격</th><th scope="col">완성 길이 <small>mm / 개</small></th><th scope="col">수량 <small>완성 부재 개수</small></th><th scope="col">총길이 <small>m</small></th><th scope="col">중량 <small>kg</small></th></tr></thead><tbody id="rows"></tbody><tfoot><tr><th scope="row">부재 합계</th><td>—</td><td id="sumPieces">—</td><td id="sumLength">—</td><td id="sumWeight">—</td></tr></tfoot></table></div>
         </section>
         <section class="purchase-panel" aria-labelledby="purchaseTitle"><div class="section-heading"><div><h2 id="purchaseTitle">원자재 구매 · 절단 배치</h2><p>동일 규격 부재를 제작 수량 전체로 묶어서 배치</p></div><span class="badge">참고 배치</span></div>
           <p id="purchaseWarning" class="purchase-warning" role="status" hidden></p>
           <div id="purchaseContent"><div class="purchase-metrics"><div><span>예상 구매 수량</span><strong id="stockCount">—</strong></div><div><span>구매 부재 중량</span><strong id="purchaseWeight">—</strong></div><div><span>자재 사용률</span><strong id="utilization">—</strong></div></div>
-            <p id="lossSummary" class="loss-summary"></p>
+            <p id="stockBreakdown" class="stock-breakdown"></p><p id="lossSummary" class="loss-summary"></p>
+            <div id="materialPurchases" class="table-scroll"></div>
+            <section class="extension-section" aria-labelledby="extensionTitle"><h3 id="extensionTitle">원자재 초과 · 연장 산출</h3><p id="extensionSummary"></p><div id="extensionRows" class="table-scroll"></div></section>
             <details class="cut-details" open><summary>절단 패턴 보기 <span id="patternCount"></span></summary><div id="cutPatterns"></div></details>
           </div><p class="purchase-note">긴 부재부터 채우는 참고 배치입니다. 최소 본수를 보장하지 않으며, 절단치·접합 여유는 제작 도면으로 확정하세요.</p>
         </section>
-        <details class="assumptions" open><summary>계산 기준과 포함 범위</summary><ul><li>정면 폭 b는 정면 프레임에서 부재가 차지하는 폭, 깊이 방향 폭 d는 앞뒤 방향으로 차지하는 폭입니다. 직사각관·H형강은 회전하면 b와 d가 바뀝니다.</li><li>외곽 세로재는 전체 높이, 가로재는 세로재 사이 맞댐 길이로 계산합니다. 깊이형의 모서리 연결재는 전체 깊이 − 2d 길이로 4개입니다.</li><li>측면당 세로 보강재 n개, 가로 보강재 r열일 때 좌우 세로재는 (높이 − 2b) 길이로 2n개, 좌우 가로재는 (깊이 − 2d − nd) ÷ (n + 1) 길이로 2r(n + 1)개입니다. 모두 제작 수량을 곱합니다.</li><li>측면 세로재의 깊이 방향 폭은 d, 측면 가로재의 높이 방향 폭은 b로 가정합니다. 모든 길이는 부재 외곽 치수 기준이며, H형강 코핑·플랜지 간섭·접합판 등 접합 상세는 반영하지 않습니다.</li><li>구매 중량에는 톱날 손실·양끝 정리·잔재가 포함됩니다. 끝단 잔재가 톱날 폭보다 짧으면 실제 잔재 길이만 손실 처리합니다. 합계와 배치는 반올림 전 값으로 계산합니다.</li><li>상하면 추가 보강재·지주·판재·볼트·용접량 자동 산출 및 구조 안전성 검토는 포함하지 않습니다.</li></ul></details>
+        <details class="assumptions"><summary>계산 기준과 포함 범위</summary><ul><li>완성 치수에서 해당 부위의 실제 폭을 빼서 맞댐 길이를 산출합니다. 앞뒤 프레임 설정은 동일하며, 좌우 측면은 각각의 규격을 반영합니다.</li><li>상단·하단 가로재는 좌우 외곽 세로재 사이, 내부 세로재는 상단·하단 가로재 사이에 배치합니다. 측면 세로재는 측면 상단·하단 연결재 사이에 배치합니다.</li><li>일반 부재와 긴 부재의 첫 조각으로 기본 본수를 계산합니다. 같은 규격의 잔재에 연장 조각을 먼저 배치하고 부족한 분량만 연장용 추가 본수로 산출합니다. 서로 다른 규격·원자재 길이의 잔재는 섞지 않습니다.</li><li>기본은 맞댐 0mm입니다. 겹침 여유를 입력하면 이음 개소마다 길이를 더하며 부재 중량에도 반영합니다. 분할 길이는 물량 산출용이며 실제 이음 위치와 방법은 제작 도면으로 정해야 합니다.</li><li>부재의 90도 회전은 동일 원자재로 묶습니다. 직접 입력 규격은 재질·두께가 다르면 구분 이름을 다르게 입력하세요.</li><li>구매 중량에는 부재, 겹침 여유, 톱날 손실, 양끝 정리와 잔재가 포함됩니다. 최소 구매 본수를 보장하지 않습니다.</li><li>H형강 코핑·플랜지 간섭·접합판·지주·판재·볼트·용접량·상하면 추가 보강재와 구조 안전성 검토는 포함하지 않습니다.</li></ul></details>
       </section>
     </div>
     <footer>수량·중량 산출용 초안 <span>입력 치수: mm · 산출 중량: kg</span></footer>
