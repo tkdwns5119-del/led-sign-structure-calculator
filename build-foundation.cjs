@@ -1,0 +1,15 @@
+const fs=require('node:fs');
+const path=require('node:path');
+const src=path.join(__dirname,'dist','foundation');
+let html=fs.readFileSync(path.join(src,'index.html'),'utf8');
+html=html.replace('<link rel="stylesheet" href="style.css">','<style>'+fs.readFileSync(path.join(src,'style.css'),'utf8')+'</style>');
+html=html.replace('<link rel="stylesheet" href="interface.css">','<style>'+fs.readFileSync(path.join(src,'interface.css'),'utf8')+'</style>');
+html=html.replace('<link rel="stylesheet" href="easy.css">','<style>'+fs.readFileSync(path.join(src,'easy.css'),'utf8')+'</style>');
+const files=['wind.js','engine.js','estimate.js','excel-theme.js','excel.js','dxf.js','motion.js','app.js','easy.js'];
+for(const file of files)html=html.replace(`<script defer src="${file}"></script>`,'');
+html=html.replace('href="wind-map.png"','href="data:image/png;base64,'+fs.readFileSync(path.join(src,'wind-map.png')).toString('base64')+'"');
+const scripts=files.map(file=>fs.readFileSync(path.join(src,file),'utf8').replace(/<\/script/gi,'<\\/script')).join('\n');
+html=html.replace('</body>','<script>'+scripts+'</script></body>');
+const target=path.join(__dirname,'전광판_기초_철근_계산기.html');
+fs.writeFileSync(target,html,'utf8');
+console.log(target);

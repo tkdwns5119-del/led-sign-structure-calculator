@@ -1,0 +1,27 @@
+/* Progressive disclosure and result tabs, above the existing drawing styles. */
+[hidden]{display:none!important}
+.project-bar{display:grid;grid-template-columns:1.1fr 1fr 1fr auto;gap:12px;align-items:end;padding:16px;background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:18px}
+.project-bar label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.project-bar input,.project-bar select{width:100%;min-width:0;border:1px solid #cbd7e4;border-radius:7px;padding:8px;font-size:13px;background:#f9fbfd}
+.project-bar .hint{grid-column:1/-1;margin:0;font-size:11px}
+.step{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:7px;background:#e5f4f0;color:var(--teal);margin-right:6px;font-size:12px}
+.first-hint{margin-top:0;margin-bottom:12px}
+.map-shell{border:1px solid #dce4ec;border-radius:8px;overflow:hidden;background:#fff;margin:12px 0}
+#wind-map{display:block;width:100%;height:auto;max-width:290px;margin:auto;touch-action:manipulation}
+#wind-map [role=button]{cursor:pointer;outline:none}
+#wind-map [role=button]:focus-visible circle:last-child{stroke:#102139;stroke-width:7}
+.map-caption{padding:7px 10px;background:#edf7f4;color:#276956;text-align:center;font-size:11px}
+.wind-status{background:#edf7f4;border-left:3px solid var(--teal);padding:10px 12px;margin-top:14px;border-radius:5px}
+.wind-status strong{font-size:14px;display:block;color:#086f63}.wind-status small{display:block;color:#51756d;font-size:11px;line-height:1.75;margin-top:4px}
+.tabs{display:flex;gap:5px;border:1px solid var(--line);padding:5px;background:#dfe8f0;border-radius:10px;margin:0 0 12px;overflow-x:auto;position:sticky;top:10px;z-index:2}
+.tabs button{flex:1;white-space:nowrap;border:0;background:transparent;font-size:13px;padding:10px 12px;color:#516a7e;font-weight:600}
+.tabs button.active{background:white;color:#08786c;box-shadow:0 2px 7px #10213914}
+.scope{border-top:1px solid var(--line);margin-top:22px;padding-top:20px}
+.price-input{width:115px;max-width:100%;border:1px solid #cbd7e4;border-radius:5px;background:#f8fbfd;text-align:right;padding:6px;font-size:12px;font-variant-numeric:tabular-nums}
+.price-input:invalid,.price-input[aria-invalid=true]{border-color:#b03e43;background:#fff4f3}
+.cost-total{background:#edf7f4;border-radius:7px;padding:14px;margin-top:16px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;font-size:12px}
+.cost-total strong{font-size:17px;color:#08786c}
+.heading h1{font-size:26px}.notice{padding:10px 14px}.panel{padding:18px}.outputs{min-width:0}
+@media(max-width:1050px){.project-bar{grid-template-columns:1fr 1fr}.tabs button{font-size:12px;padding:9px 8px}.heading h1{font-size:23px}}
+@media(max-width:730px){.project-bar{gap:10px;padding:13px}.project-bar>div:first-child{grid-column:1/-1}.project-bar .actions{grid-column:1/-1}.tabs{top:5px}.heading h1{font-size:23px}.cost-total{display:block}.cost-total>*{display:block;margin:6px 0}.price-input{width:100px}.panel-head{flex-wrap:wrap}}
+@media print{.result-view[hidden]{display:block!important}.result-view{break-inside:auto}.drawing-panel{break-inside:avoid}.price-input{border:none;padding:0;background:white;width:85px}#print-wind{font-size:10px}.scope h2{font-size:12px}.cost-total{padding:9px}.scope{margin-top:12px;padding-top:12px}}

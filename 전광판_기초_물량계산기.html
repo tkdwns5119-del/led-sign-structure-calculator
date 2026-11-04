@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="기초 치수를 입력하면 터파기·버림·잡석·콘크리트 타설·거푸집·되메우기·잔토·철근 물량을 바로 산출합니다."><title>전광판 기초 물량 계산기</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23102139'/%3E%3Cpath d='M6 7h20v9H6zM14 16h4v8H7v3h18v-3h-7' fill='%235dd6bd'/%3E%3C/svg%3E"><style>:root{--navy:#132b3b;--ink:#1d3245;--muted:#55697b;--line:#d8e2ea;--bg:#f3f6f7;--teal:#0b6d63;--teal-soft:#e6f2ef;--amber:#7a4a0c;--red:#a23a22;font-family:"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;color:var(--ink);background:var(--bg);font-size:15px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg)}
+[hidden]{display:none!important}
+button,input,select,summary{font:inherit}
+button{cursor:pointer;min-height:44px;border:1px solid #b8c8d6;border-radius:9px;padding:9px 14px;background:#fff;color:#2b4459;font-weight:700}
+button:hover{background:#eef5f3}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid #2b90e5;outline-offset:2px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px max(20px,calc((100vw - 1240px)/2));background:linear-gradient(110deg,#132b3b,#193e48);color:#fff}
+.brand{display:flex;align-items:center;gap:14px}
+.mark{display:grid;place-items:center;width:42px;height:42px;border-radius:11px;background:#1f4552;color:#7fdccc;font-size:22px}
+.top h1{margin:0;font-size:20px;letter-spacing:-.4px}
+.top p{margin:3px 0 0;color:#c9dbe4;font-size:14px}
+.top-actions{display:flex;gap:8px;flex-wrap:wrap}
+.top-actions button{background:#20414f;color:#eaf4f7;border-color:#46707c}
+.top-actions button:hover{background:#2a5463}
+.layout{display:grid;grid-template-columns:minmax(300px,400px) minmax(0,1fr);gap:22px;align-items:start;max-width:1280px;margin:0 auto;padding:22px max(20px,calc((100vw - 1240px)/2)) 40px}
+.inputs{display:grid;gap:14px;position:sticky;top:14px;max-height:calc(100dvh - 28px);overflow:auto;padding-bottom:4px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px}
+.card h2{margin:0 0 14px;font-size:16px}
+.more summary{font-weight:700;min-height:28px;display:flex;align-items:center}
+.more[open] summary{margin-bottom:14px}
+.grid2,.grid3{display:grid;gap:12px}
+.grid2{grid-template-columns:1fr 1fr}
+.grid3{grid-template-columns:repeat(3,1fr)}
+.field{display:grid;gap:6px;margin-bottom:12px}
+.grid2 .field,.grid3 .field{margin-bottom:0}
+.field label{font-size:14px;font-weight:700;color:#344c60}
+.unit-input{display:flex;align-items:center;border:1px solid #b9c9d6;border-radius:9px;background:#fff;overflow:hidden}
+.unit-input:focus-within{border-color:var(--teal);box-shadow:0 0 0 3px #0b6d6322}
+.unit-input input{flex:1;min-width:0;border:0;padding:10px 10px;font-size:16px;color:var(--ink);background:transparent;font-variant-numeric:tabular-nums}
+.unit-input input:focus{outline:none}
+.unit-input span{padding:0 10px;color:var(--muted);font-size:14px;white-space:nowrap}
+input[aria-invalid=true]{background:#fff0ec}
+.unit-input:has(input[aria-invalid=true]){border-color:var(--red)}
+select{width:100%;min-height:44px;border:1px solid #b9c9d6;border-radius:9px;padding:8px 10px;font-size:16px;background:#fff;color:var(--ink)}
+.hint{margin:10px 0 0;color:var(--muted);font-size:13px;line-height:1.6}
+.check{display:flex;align-items:center;gap:10px;min-height:40px;margin-bottom:10px;font-weight:700}
+.check input{width:19px;height:19px;accent-color:var(--teal)}
+.text-button{border:0;background:none;color:var(--teal);justify-self:start;padding:6px 2px}
+.results{min-width:0}
+.error{padding:12px 14px;border-left:4px solid var(--red);background:#fff0ec;color:#7f2f18;border-radius:8px;margin-bottom:14px;line-height:1.6}
+#result.stale{opacity:.45}
+.result-head{display:flex;justify-content:space-between;gap:14px;align-items:end;margin-bottom:14px}
+.result-head h2{margin:0;font-size:22px;letter-spacing:-.5px}
+.result-head p{margin:6px 0 0;color:var(--muted);line-height:1.6}
+.key-figures{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:16px}
+.figure{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px 15px;display:grid;gap:4px}
+.figure:first-child,.figure:nth-child(2){background:var(--teal-soft);border-color:#b7dad2}
+.figure span{color:var(--muted);font-size:14px;font-weight:700}
+.figure strong{font-size:22px;font-variant-numeric:tabular-nums;letter-spacing:-.4px}
+.figure strong small{font-size:14px;margin-left:4px;color:var(--muted);font-weight:700}
+.figure em{font-style:normal;font-size:13px;color:var(--muted)}
+.table-wrap{overflow:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:11px 12px;border-bottom:1px solid #e4ebf0;text-align:left;vertical-align:top;line-height:1.55}
+thead th{background:#eef3f6;color:#3a5266;font-size:14px;white-space:nowrap}
+tbody th{font-weight:700;white-space:nowrap}
+tbody tr:last-child th,tbody tr:last-child td{border-bottom:0}
+tr.strong th,tr.strong td.num{color:var(--teal)}
+.num{text-align:right;white-space:nowrap}
+td.formula{color:var(--muted);font-size:13px;min-width:220px}
+.rebar-detail{margin-top:14px;padding:0}
+.rebar-detail summary{padding:14px 18px;font-weight:700}
+.rebar-detail .table-wrap{border:0;border-top:1px solid var(--line);border-radius:0 0 14px 14px}
+.note{color:var(--muted);font-size:14px;line-height:1.7;margin:14px 2px}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.inputs{position:static;max-height:none;overflow:visible}}
+@media(max-width:600px){
+  .top{flex-direction:column;align-items:stretch;padding:14px 16px}.top h1{font-size:18px}
+  .top-actions{display:grid;grid-template-columns:repeat(3,1fr)}.top-actions button{padding:8px 6px}
+  .layout{padding:14px 12px 30px;gap:14px}
+  .grid3{grid-template-columns:1fr 1fr}.grid3 .field:last-child{grid-column:1/-1}
+  .card{padding:15px}
+  .key-figures{grid-template-columns:1fr 1fr}
+  .figure strong{font-size:19px}
+  td.formula{display:none}
+}
+@media(max-width:360px){.grid2{grid-template-columns:1fr}}
+@media print{
+  :root,body{background:#fff;font-size:12px}
+  .no-print,.top-actions,.inputs{display:none!important}
+  .top{background:#fff;color:#000;border-bottom:2px solid #132b3b;padding:0 0 8px}.top p{color:#333}.mark{display:none}
+  .layout{display:block;padding:10px 0}
+  .figure{break-inside:avoid}
+  .rebar-detail{display:block}.rebar-detail summary{display:none}
+  .rebar-detail:not([open]) .table-wrap{display:block}
+  td.formula{display:table-cell;font-size:11px}
+}
+td .u{margin-left:4px;color:var(--muted);font-size:13px}
+tr.strong td .u{color:inherit}
+.figure strong small{margin-left:5px}
+@media(max-width:900px){
+  .layout{display:flex;flex-direction:column}
+  .inputs{display:contents}
+  .inputs>.card:not(.more){order:1}
+  .results{order:2;width:100%}
+  .inputs>.more,#reset{order:3}
+}
+@media(max-width:600px){thead th.formula-head{display:none}}
+@media print{thead th.formula-head{display:table-cell}}
+#result.single .one{display:none}
+@media(max-width:900px){.layout{align-items:stretch}}
+@media(max-width:600px){tbody th{white-space:normal;min-width:120px}th,td{padding:10px 8px}td .u{font-size:12px;margin-left:3px}}
+/* 쉬운 산출 근거 */
+table.boq tbody th{white-space:normal;font-weight:400;min-width:0}
+table.boq .item{display:block;font-weight:700;font-size:15px;color:var(--ink)}
+table.boq .how{display:block;margin-top:4px;font-size:14px;color:#24506a;font-variant-numeric:tabular-nums;line-height:1.6}
+table.boq .why{display:block;margin-top:2px;font-size:13px;color:var(--muted);line-height:1.6}
+table.boq tr.strong .item{color:var(--teal)}
+table.boq tr.group th{background:#f4f7f9;color:#3a5266;font-size:14px;font-weight:700;padding:8px 12px}
+table.boq td.num{vertical-align:top;padding-top:13px;font-weight:700;font-size:15px}
+.section-card{margin:0 0 16px;padding:14px 16px}
+.section-card figcaption{font-weight:700;font-size:14px;color:#3a5266;margin-bottom:8px}
+.section-drawing svg{display:block;width:100%;height:auto;max-height:380px}
+.section-drawing .gl{stroke:#6b7f8c;stroke-width:2;stroke-dasharray:6 4}
+.section-drawing .soil{fill:#ead9bf;stroke:#b8956a;stroke-width:1.5}.sw.soil{background:#ead9bf;border-color:#b8956a}
+.section-drawing .stone{fill:#c9cdd2;stroke:#8e979f;stroke-width:1}.sw.stone{background:#c9cdd2;border-color:#8e979f}
+.section-drawing .lean{fill:#9fb0bd;stroke:#71838f;stroke-width:1}.sw.lean{background:#9fb0bd;border-color:#71838f}
+.section-drawing .conc{fill:#7fa8a2;stroke:#3e6f68;stroke-width:1.5}.sw.conc{background:#7fa8a2;border-color:#3e6f68}
+.section-drawing .dim line,.section-drawing .dim-line{stroke:#4f6475;stroke-width:1.2}
+.section-drawing .dim.strong line{stroke:var(--teal);stroke-width:1.8}
+.section-drawing .lbl{font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;font-weight:600;fill:#2b4459}
+.section-drawing .lbl.strong{fill:var(--teal);font-weight:700}
+.section-drawing .lbl.muted{fill:#6b7f8c;font-weight:400;font-size:13px}
+.section-drawing .lbl.on-conc{fill:#fff;font-weight:700}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:8px 0 0;padding:0;list-style:none;font-size:13px;color:var(--muted)}
+.legend li{display:flex;align-items:center;gap:6px}
+.sw{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid}
+@media(max-width:600px){table.boq .item{font-size:14px}table.boq .how{font-size:13px}table.boq .why{font-size:12.5px}table.boq td.num{font-size:14px}}
+@media print{.section-card{break-inside:avoid}}
+
+.layers{margin:8px 0 0;font-size:14px;color:#2b4459;line-height:1.6}.layers strong{color:var(--teal)}
+.per-one{margin:0 0 8px;font-size:14px;color:var(--muted)}
+.section-drawing .lbl:not(.on-conc){paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+</style></head>
+<body>
+<header class="top"><div class="brand"><span class="mark" aria-hidden="true">▥</span><div><h1>기초 물량 계산기</h1><p>기초 치수만 넣으면 터파기·타설·거푸집·철근 물량을 바로 산출합니다.</p></div></div><div class="top-actions no-print"><button id="save-xlsx" type="button">엑셀 저장</button><button id="save-csv" type="button">CSV</button><button id="print" type="button">인쇄 · PDF</button></div></header>
+<main class="layout">
+<form id="form" class="inputs no-print" novalidate>
+  <section class="card"><h2>기초 크기</h2>
+    <div class="field wide"><label for="type">기초 형식</label><select id="type"><option value="single">목 1개 독립기초 (T형)</option><option value="combined">목 2개 복합기초</option><option value="block">목 없는 블록기초</option></select></div>
+    <div class="grid2"><div class="field"><label for="L">푸팅 가로 L</label><div class="unit-input"><input id="L" type="number" inputmode="numeric" min="300" max="30000" step="100" value="2500"><span>mm</span></div></div><div class="field"><label for="W">푸팅 세로 W</label><div class="unit-input"><input id="W" type="number" inputmode="numeric" min="300" max="30000" step="100" value="2500"><span>mm</span></div></div><div class="field"><label for="H">푸팅 두께 H</label><div class="unit-input"><input id="H" type="number" inputmode="numeric" min="200" max="4000" step="100" value="1600"><span>mm</span></div></div><div class="field"><label for="qty">같은 기초 개수</label><div class="unit-input"><input id="qty" type="number" inputmode="numeric" min="1" max="1000" step="1" value="1"><span>개</span></div></div></div>
+  </section>
+  <section class="card" id="neck-card"><h2>목(기둥 받침)</h2>
+    <div class="grid2"><div class="field"><label for="cL">목 가로</label><div class="unit-input"><input id="cL" type="number" inputmode="numeric" min="200" max="30000" step="50" value="800"><span>mm</span></div></div><div class="field"><label for="cW">목 세로</label><div class="unit-input"><input id="cW" type="number" inputmode="numeric" min="200" max="30000" step="50" value="800"><span>mm</span></div></div><div class="field"><label for="cH">목 전체 높이</label><div class="unit-input"><input id="cH" type="number" inputmode="numeric" min="100" max="5000" step="50" value="1000"><span>mm</span></div></div><div class="field"><label for="above">지상 노출 높이</label><div class="unit-input"><input id="above" type="number" inputmode="numeric" min="0" max="5000" step="50" value="300"><span>mm</span></div></div></div>
+    <div class="field" id="post-spacing-field" hidden><label for="postSpacing">두 목 중심 간격</label><div class="unit-input"><input id="postSpacing" type="number" inputmode="numeric" min="200" max="20000" step="100" value="3500"><span>mm</span></div></div>
+    <p class="hint">GL 아래 근입 깊이 = 목 전체 높이 − 지상 노출 높이</p>
+  </section>
+  <details class="card more"><summary>터파기·버림·잡석 조건</summary>
+    <div class="grid2"><div class="field"><label for="lean">버림 두께</label><div class="unit-input"><input id="lean" type="number" min="0" max="300" step="10" value="100"><span>mm</span></div></div><div class="field"><label for="stone">잡석 두께</label><div class="unit-input"><input id="stone" type="number" min="0" max="1000" step="10" value="200"><span>mm</span></div></div><div class="field"><label for="ow">버림·잡석 좌우 여유</label><div class="unit-input"><input id="ow" type="number" min="0" max="500" step="10" value="100"><span>mm</span></div></div><div class="field"><label for="work">굴착 바닥 작업 여유</label><div class="unit-input"><input id="work" type="number" min="0" max="2000" step="50" value="300"><span>mm</span></div></div><div class="field"><label for="slope">굴착 물매 (수평:수직)</label><div class="unit-input"><input id="slope" type="number" min="0" max="2" step="0.1" value="0"><span>: 1</span></div></div></div>
+  </details>
+  <details class="card more"><summary>할증·토량 환산</summary>
+    <div class="grid2"><div class="field"><label for="concWaste">콘크리트 주문 할증</label><div class="unit-input"><input id="concWaste" type="number" min="0" max="10" step="0.5" value="1"><span>%</span></div></div><div class="field"><label for="rebarWaste">철근 할증</label><div class="unit-input"><input id="rebarWaste" type="number" min="0" max="20" step="0.5" value="3"><span>%</span></div></div><div class="field"><label for="soilL">토량 팽창계수 L</label><div class="unit-input"><input id="soilL" type="number" min="1" max="2" step="0.05" value="1.2"><span></span></div></div><div class="field"><label for="soilC">토량 다짐계수 C</label><div class="unit-input"><input id="soilC" type="number" min="0.5" max="1.2" step="0.05" value="1"><span></span></div></div></div>
+  </details>
+  <details class="card more"><summary>철근 (입력한 규격·간격으로 산출)</summary>
+    <label class="check"><input id="rebar-on" type="checkbox" checked> 철근 물량 포함</label>
+    <div id="rebar-fields"><div class="grid2"><div class="field"><label for="bar">푸팅 철근</label><select id="bar"></select></div><div class="field"><label for="spacing">푸팅 철근 간격</label><div class="unit-input"><input id="spacing" type="number" min="50" max="450" step="25" value="200"><span>mm</span></div></div><div class="field"><label for="cover">푸팅 피복</label><div class="unit-input"><input id="cover" type="number" min="40" max="150" step="5" value="75"><span>mm</span></div></div><div class="field neck-only"><label for="neckBar">목 주근</label><select id="neckBar"></select></div><div class="field neck-only"><label for="neckNX">목 X면 주근 수</label><div class="unit-input"><input id="neckNX" type="number" min="2" max="200" step="1" value="6"><span>본</span></div></div><div class="field neck-only"><label for="neckNY">목 Y면 주근 수</label><div class="unit-input"><input id="neckNY" type="number" min="2" max="200" step="1" value="6"><span>본</span></div></div><div class="field neck-only"><label for="tieBar">띠철근</label><select id="tieBar"></select></div><div class="field neck-only"><label for="tieSpacing">띠철근 간격</label><div class="unit-input"><input id="tieSpacing" type="number" min="50" max="300" step="25" value="150"><span>mm</span></div></div><div class="field neck-only"><label for="dowelEmbed">목 주근 푸팅 근입</label><div class="unit-input"><input id="dowelEmbed" type="number" min="100" max="3000" step="50" value="500"><span>mm</span></div></div></div>
+    <p class="hint">상·하부 X·Y 격자(같은 규격·간격)와 목 L형 주근·띠철근을 합산합니다. 이음·스페이서는 포함하지 않습니다.</p></div>
+  </details>
+  <button id="reset" type="button" class="text-button">기본값으로 되돌리기</button>
+</form>
+<section class="results" aria-live="polite">
+  <div id="error" class="error" role="alert" hidden></div>
+  <div id="result">
+    <div class="result-head"><div><h2 id="result-title">자재 수량</h2><p id="result-sub"></p></div></div>
+    <div class="key-figures" id="key-figures"></div>
+    <figure class="card section-card"><figcaption>기초 단면 (가로 방향) · 색칠한 부분이 각 물량입니다</figcaption><div id="section-drawing" class="section-drawing"></div><ul class="legend"><li><i class="sw soil"></i>터파기(되메울 흙)</li><li><i class="sw stone"></i>잡석</li><li><i class="sw lean"></i>버림 콘크리트</li><li><i class="sw conc"></i>기초 콘크리트</li></ul></figure><p id="per-one-note" class="per-one" hidden></p><div class="table-wrap"><table class="boq"><thead><tr><th scope="col">공종 · 어떻게 계산했나요</th><th scope="col" class="num one">1개</th><th scope="col" class="num" id="total-head">전체</th></tr></thead><tbody id="boq"></tbody></table></div>
+    <details class="card rebar-detail" id="rebar-detail"><summary>철근 상세 (본수·길이)</summary><div class="table-wrap"><table><thead><tr><th scope="col">기호</th><th scope="col">부위</th><th scope="col">규격</th><th scope="col" class="num">1개 본수</th><th scope="col" class="num">길이 (mm)</th><th scope="col" class="num">1개 중량 (kg)</th></tr></thead><tbody id="rebar-rows"></tbody></table></div></details>
+    <p class="note">물량 산출용입니다. 콘크리트 ‘주문량’은 푸팅+목 순체적에 할증을 더한 값이라 위 두 행과 중복 합산하지 않습니다. 터파기는 GL에서 잡석 바닥까지, 되메우기는 터파기에서 지중 구조물·버림·잡석을 뺀 값입니다. 구조 안전 검토는 포함하지 않습니다.</p>
+  </div>
+</section>
+</main>
+<noscript>계산기를 사용하려면 JavaScript를 허용하세요.</noscript>
+<script>(function(root){
+  'use strict';
+  const source={title:'국토교통부 강풍에 의한 건축물 외장재 탈락방지 가이드라인',year:2022,page:55,figure:'그림 2.4-1 / KDS 41 12 00:2022, 500년 풍속',url:'https://www.molit.go.kr/USR/policyData/dtl.jsp?id=4673',mirror:'https://www.codil.or.kr/filebank/original/RK/OTKCRK240379/OTKCRK240379.pdf'};
+  // Coordinates are pixels in the cropped official map (790 × 1090), not GPS.
+  // Values are manually read, conservative preliminary values near the labelled
+  // reference point. No municipality-wide or exact-site GIS lookup is claimed.
+  const points=[
+    ['seoul','서울',246,206,28],['incheon','인천',200,224,34],['suwon','수원',253,272,30],
+    ['chuncheon','춘천',360,147,28],['sokcho','속초',485,82,38],['gangneung','강릉',571,217,36],
+    ['wonju','원주',397,258,28],['cheongju','청주',323,393,34],['daejeon','대전',309,442,32],
+    ['jeonju','전주',278,556,30],['gunsan','군산',212,571,36],['gwangju','광주',240,679,32],
+    ['mokpo','목포',158,751,40],['wando','완도',208,833,42],['yeosu','여수',369,760,40],
+    ['daegu','대구',504,538,30],['pohang','포항',617,507,40],['ulsan','울산',613,606,42],
+    ['jinju','진주',410,680,34],['changwon','창원',496,674,36],['busan','부산',567,689,42],
+    ['geoje','거제',502,733,42],['jeju','제주',179,1008,50],['seogwipo','서귀포',190,1050,50],
+    ['ulleung','울릉도',687,218,46],['dokdo','독도',735,237,46]
+  ].map(([id,name,x,y,v])=>({id,name,x,y,v,kind:id==='busan'?'공식 계산 예제 42m/s':id==='ulleung'||id==='dokdo'?'지도 표기 46m/s':'지도 인근 등풍속선의 보수적 판독 예비값'}));
+  const exposures={A:{label:'고층 건물이 밀집한 도심',zb:20,zg:550,alpha:.33,low:.58,c:.22},B:{label:'주택·수목이 밀집한 시가지',zb:15,zg:450,alpha:.22,low:.81,c:.45},C:{label:'저층 건물·수목이 산재한 지역',zb:10,zg:350,alpha:.15,low:1,c:.71},D:{label:'장애물이 거의 없는 해안·평지',zb:5,zg:250,alpha:.1,low:1.13,c:.98}};
+  function getPoint(id){return points.find(p=>p.id===id)||null;}
+  function nearest(x,y){
+    if(!Number.isFinite(x)||!Number.isFinite(y)||x<0||y<0||x>790||y>1090)return null;
+    return points.reduce((best,p)=>{const distance=Math.hypot(p.x-x,p.y-y);return !best||distance<best.distance?{...p,distance}:best;},null);
+  }
+  function regional({basicWind,height,exposure='C',topography=1,importance=1,direction=1,cf=1.8,gust=1.5}){
+    const e=exposures[exposure];
+    if(!e||![basicWind,height,topography,importance,direction,cf,gust].every(Number.isFinite)||basicWind<=0||height<0||topography<1||importance<=0||direction<=0||direction>1||cf<=0||gust<1)throw new Error('지역 풍하중 입력을 확인하세요.');
+    const z=Math.min(height,e.zg),kzr=z<=e.zb?e.low:e.c*z**e.alpha;
+    const velocity=basicWind*direction*kzr*topography*importance;
+    const q=0.5*1.225*velocity**2/1000,pressure=q*cf*gust;
+    return {basicWind,height,kzr,velocity,q,pressure,exposure,topography,importance,direction,source};
+  }
+  const api={source,points,exposures,getPoint,nearest,regional};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FoundationWind=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+
+;
+(function (root) {
+  'use strict';
+  const Wind=typeof module!=='undefined'&&module.exports?require('./wind.js'):root.FoundationWind;
+  const bars = {
+    10:{d:9.53,area:71.33,kg:0.560},13:{d:12.7,area:126.7,kg:0.995},
+    16:{d:15.9,area:198.6,kg:1.560},19:{d:19.1,area:286.5,kg:2.250},
+    22:{d:22.2,area:387.1,kg:3.040},25:{d:25.4,area:506.7,kg:3.980},
+    29:{d:28.6,area:642.4,kg:5.040},32:{d:31.8,area:794.2,kg:6.230}
+  };
+  const types = {
+    single:{label:'독립기초 · 1주 / T형',neck:true,count:1,L:2200,W:2200,H:1500,cL:800,cW:800,cH:1000,above:300},
+    combined:{label:'복합 통기초 · 2주',neck:true,count:2,L:6500,W:2200,H:1500,cL:800,cW:800,cH:1000,above:300},
+    block:{label:'단일 블록 통기초',neck:false,count:0,L:2000,W:2000,H:1800,cL:800,cW:800,cH:1000,above:0},
+    mat:{label:'매트기초 · 수량 산출',neck:false,count:0,L:8000,W:4000,H:1500,cL:800,cW:800,cH:1000,above:0},
+    strip:{label:'줄기초 · 연속 목 / 수량 산출',neck:true,count:1,L:10000,W:1200,H:1500,cL:10000,cW:400,cH:600,above:200}
+  };
+  const defaults = {
+    type:'single',mode:'auto',installMode:'shared',qty:1,foundationSpacing:3500,signW:4000,signH:2000,signDepth:250,bottom:3,
+    panelKgM2:45,postKg:250,extraKg:0,windMode:'pressure',pressure:1.5,velocity:40,cf:1.8,gust:1.5,
+    sidePressure:1.5,sideMode:'manual',windPoint:'',basicWind:28,exposure:'C',topography:1,importance:1,direction:1,
+    extraForce:0,extraForceZ:2,eccX:0,eccY:0,qa:150,mu:0.4,waterDepth:100,
+    gammaC:24,stabilize:0.9,fsTarget:1.5,deadFactor:1.2,windFactor:1.6,
+    fck:27,fy:400,phiFlex:0.85,phiShear:0.75,rho:0.002,aggregate:25,
+    L:2200,W:2200,H:1500,cL:800,cW:800,cH:1000,above:300,postSpacing:3500,
+    autoMax:10000,autoHMax:2000,aspect:1,cover:75,neckCover:50,
+    rebarMode:'auto',bar:19,spacing:200,maxSpacing:250,neckBar:22,neckNX:6,neckNY:6,tieBar:10,tieSpacing:150,
+    ld:500,dowelEmbed:500,dowelTail:300,rebarWaste:3,concWaste:1,
+    ow:100,lean:100,stone:200,work:300,slope:0,soilL:1.2,soilC:1,oldRatio:95,
+    columnShape:'schematic',columnDiameter:300,columnWidth:150,columnDepth:150,plateShape:'rect',plateDiameter:500,anchorAngle:0,
+    anchorCount:8,anchorDiameter:30,plateL:500,plateW:500,anchorEdge:75,groutThickness:40,groutYield:12.5,groutWaste:5,groundRods:2,elpLength:10,vat:10
+  };
+  const limits = {
+    qty:[1,1000,true],foundationSpacing:[200,100000],signW:[100,50000],signH:[100,30000],signDepth:[0,10000],bottom:[0,50],basicWind:[20,60],topography:[1,3],importance:[0.5,2],direction:[0.5,1],
+    panelKgM2:[0,1000],postKg:[0,100000],extraKg:[0,100000],pressure:[0,20],velocity:[0,100],cf:[0.1,5],gust:[1,3],sidePressure:[0,20],extraForce:[0,1000],extraForceZ:[0,50],eccX:[-5,5],eccY:[-5,5],
+    qa:[1,5000],mu:[0.01,1],waterDepth:[0,100],gammaC:[20,28],stabilize:[0.1,1],fsTarget:[1,3],deadFactor:[1,2],windFactor:[1,3],
+    fck:[18,60],fy:[300,600],phiFlex:[0.5,0.85],phiShear:[0.5,0.75],rho:[0.001,0.01],aggregate:[5,50],
+    L:[300,30000],W:[300,30000],H:[200,4000],cL:[200,30000],cW:[200,30000],cH:[100,5000],above:[0,5000],postSpacing:[200,20000],
+    autoMax:[2000,12000],autoHMax:[500,3000],aspect:[0.5,2],cover:[40,150],neckCover:[30,150],
+    spacing:[50,450],maxSpacing:[100,300],neckNX:[2,200,true],neckNY:[2,200,true],tieSpacing:[50,300],ld:[100,3000],dowelEmbed:[100,3000],dowelTail:[0,2000],
+    rebarWaste:[0,20],concWaste:[0,10],ow:[0,500],lean:[0,300],stone:[0,1000],work:[0,2000],slope:[0,2],soilL:[1,2],soilC:[0.5,1.2],oldRatio:[0,300],
+    columnDiameter:[50,3000],columnWidth:[50,3000],columnDepth:[50,3000],plateDiameter:[100,3000],anchorAngle:[0,360],
+    anchorCount:[0,32,true],anchorDiameter:[16,64],plateL:[100,3000],plateW:[100,3000],anchorEdge:[20,300],groutThickness:[0,150],groutYield:[5,25],groutWaste:[0,30],groundRods:[0,20,true],elpLength:[0,1000],vat:[0,30]
+  };
+  const EPS=1e-8;
+  function validate(raw) {
+    const p={...defaults,...raw};
+    for (const [k,[min,max,integer]] of Object.entries(limits)) {
+      if(typeof p[k]!=='number'||!Number.isFinite(p[k])||p[k]<min||p[k]>max||(integer&&!Number.isInteger(p[k])))throw new Error(`${k}: ${min}~${max}${integer?' 범위의 정수':' 범위의 수치'}를 입력하세요.`);
+    }
+    if(!Object.hasOwn(types,p.type)||!['shared','repeat'].includes(p.installMode)||!['auto','manual'].includes(p.mode)||!['auto','manual'].includes(p.rebarMode)||!['pressure','velocity','regional'].includes(p.windMode)||!['manual','linked'].includes(p.sideMode)||!Object.hasOwn(Wind.exposures,p.exposure)||p.windPoint&&!Wind.getPoint(p.windPoint))throw new Error('배치 방식, 기초 형식 또는 풍하중 계산 모드를 확인하세요.');
+    for(const k of ['bar','neckBar','tieBar'])if(!Object.hasOwn(bars,p[k]))throw new Error('철근 규격을 확인하세요.');
+    if(!['schematic','rect','circle'].includes(p.columnShape))throw new Error('columnShape: 기둥 형상을 확인하세요.');
+    if(!['rect','circle'].includes(p.plateShape))throw new Error('plateShape: 베이스플레이트 형상을 확인하세요.');
+    if(p.above>p.cH&&types[p.type].neck)throw new Error('목의 지상 노출고는 전체 목 높이 이하이어야 합니다.');
+    if(p.mode==='auto'&&p.type!=='single')throw new Error('자동 치수 검토는 중앙 1주 T형 독립기초에 적용합니다. 다른 형식은 수동 치수로 수량과 배근 초안을 산출하세요.');
+    if(p.installMode==='shared'&&p.qty>32)throw new Error('qty: 한 전광판 아래 배치하는 기초는 1~32개를 입력하세요. 여러 전광판의 설치 수량은 배치 방식에서 선택하세요.');
+    if(sharedSupports(p)&&p.mode==='auto')throw new Error('여러 기초로 받치는 전광판은 하중 분배 해석이 필요합니다. 기초 치수를 직접 입력해 수량·배근 초안을 산출하세요.');
+    if(['single','combined'].includes(p.type)&&p.bottom<p.above/1000)throw new Error('전광판 하단 높이가 목 상단보다 낮습니다. 설치 높이를 확인하세요.');
+    return p;
+  }
+  function sharedSupports(p){return p.installMode==='shared'&&p.qty>1;}
+  function canScreen(p){return p.type==='single'&&!sharedSupports(p);}
+  function supportCounts(p){
+    // Steel columns are defined by the 1-post and 2-post templates only.
+    // Concrete neck counts in mat/strip/block templates do not define steel supports.
+    const perFoundation=p.type==='single'?1:p.type==='combined'?2:null;
+    return {perFoundation,total:perFoundation===null?null:perFoundation*p.qty,foundations:p.qty,boards:p.installMode==='shared'?1:p.qty,known:perFoundation!==null,shared:sharedSupports(p)};
+  }
+  function geometry(p,L=p.L,W=p.W,H=p.H) {
+    const t=types[p.type],neck=t.neck,n=t.count;
+    if(neck&&(p.cL>L+EPS||p.cW>W+EPS))throw new Error('목 치수가 푸팅을 벗어납니다.');
+    if(p.type==='combined'&&(p.postSpacing+p.cL>L||p.postSpacing<p.cL))throw new Error('두 목이 겹치거나 푸팅 밖으로 벗어납니다. 지주 중심 간격과 푸팅 길이를 확인하세요.');
+    if(H<=2*p.cover+4*bars[p.bar].d)throw new Error('푸팅 두께에 상·하부 철근과 피복을 배치할 공간이 부족합니다.');
+    const embed=neck?(p.cH-p.above)/1000:0;
+    return {L,W,H,cL:neck?p.cL:0,cW:neck?p.cW:0,cH:neck?p.cH:0,above:neck?p.above:0,neck,n,embed,depth:embed+H/1000,pedestals:p.type==='combined'?[-p.postSpacing/2,p.postSpacing/2]:neck?[0]:[]};
+  }
+  function earth(p,g) {
+    const l=g.L/1000,w=g.W/1000,h=g.H/1000,ow=p.ow/1000,tb=p.lean/1000,tr=p.stone/1000;
+    const footing=l*w*h,neck=g.cL*g.cW*g.cH*g.n/1e9;
+    const formFoot=2*(l+w)*h,formNeck=2*(g.cL+g.cW)*g.cH*g.n/1e6;
+    const subL=l+2*ow,subW=w+2*ow,lean=subL*subW*tb,stone=subL*subW*tr;
+    const depth=g.depth+tb+tr,botL=subL+2*p.work/1000,botW=subW+2*p.work/1000;
+    const topL=botL+2*p.slope*depth,topW=botW+2*p.slope*depth;
+    const excavation=depth/6*(botL*botW+topL*topW+4*(botL+p.slope*depth)*(botW+p.slope*depth));
+    const buried=footing+g.cL*g.cW*g.embed*g.n/1e6+lean+stone;
+    const backfill=Math.max(0,excavation-buried),surplus=Math.max(0,excavation-backfill/p.soilC)*p.soilL,borrow=Math.max(0,backfill/p.soilC-excavation);
+    const wetFoot=l*w*Math.max(0,g.depth-Math.max(g.embed,p.waterDepth));
+    const wetNeck=g.cL*g.cW*g.n/1e6*Math.max(0,g.embed-p.waterDepth);
+    return {footing,neck,concrete:footing+neck,orderedConcrete:(footing+neck)*(1+p.concWaste/100),formFoot,formNeck,form:formFoot+formNeck,subL,subW,lean,stone,depth,botL,botW,topL,topW,excavation,buried,backfill,surplus,borrow,buoyancy:(wetFoot+wetNeck)*9.81};
+  }
+  function loads(p,g,q) {
+    const area=p.signW*p.signH/1e6,sideArea=p.signDepth*p.signH/1e6;
+    const windDetail=p.windMode==='regional'?Wind.regional({basicWind:p.basicWind,height:p.bottom+p.signH/1000,exposure:p.exposure,topography:p.topography,importance:p.importance,direction:p.direction,cf:p.cf,gust:p.gust}):null;
+    const pressure=windDetail?windDetail.pressure:p.windMode==='pressure'?p.pressure:0.5*1.225*p.velocity*p.velocity*p.cf*p.gust/1000;
+    const sidePressure=p.sideMode==='linked'?pressure:p.sidePressure;
+    const front=area*pressure,side=sideArea*sidePressure,center=p.bottom+p.signH/2000;
+    const panelKg=area*p.panelKgM2,upper=(panelKg+p.postKg+p.extraKg)*9.80665/1000;
+    const dead=q.concrete*p.gammaC+upper;
+    const mx=front*(center+g.depth)+p.extraForce*(p.extraForceZ+g.depth);
+    const my=side*(center+g.depth);
+    const N=p.stabilize*dead-q.buoyancy;
+    const momentX=Math.abs(mx)+Math.abs(upper*p.eccY),momentY=Math.abs(my)+Math.abs(upper*p.eccX);
+    const L=g.L/1000,W=g.W/1000,A=L*W;
+    const ex=N>0?momentY/N:Infinity,ey=N>0?momentX/N:Infinity;
+    const kern=N>0?6*ex/L+6*ey/W:Infinity;
+    const qmax=N>0?N/A*(1+kern):Infinity,qmin=N>0?N/A*(1-kern):-Infinity;
+    const force=Math.hypot(front+p.extraForce,side);
+    const fsSlide=force>EPS?Math.max(0,N)*p.mu/force:Infinity;
+    const fsOver=(momentX/W+momentY/L)>EPS?Math.max(0,N)/(2*(momentX/W+momentY/L)):Infinity;
+    const Nu=p.deadFactor*(dead-q.buoyancy),muX=p.windFactor*Math.abs(mx)+p.deadFactor*Math.abs(upper*p.eccY),muY=p.windFactor*Math.abs(my)+p.deadFactor*Math.abs(upper*p.eccX);
+    const kernU=Nu>0?6*(muX/W+muY/L)/Nu:Infinity;
+    const qu=Nu>0?Nu/A*(1+kernU):Infinity;
+    return {area,sideArea,pressure,sidePressure,windDetail,front,side,force,center,panelKg,upper,dead,N,mx:momentX,my:momentY,ex,ey,kern,qmax,qmin,fsSlide,fsOver,Nu,muX,muY,kernU,qu};
+  }
+  function aggregateQuantities(p,g,q){
+    const N=p.qty,keys=['footing','neck','concrete','orderedConcrete','formFoot','formNeck','form','lean','stone','excavation','backfill','surplus','borrow'];
+    const total=Object.fromEntries(keys.map(k=>[k,q[k]*N]));
+    total.stoneArea=p.stone>0?q.subL*q.subW*N:0;total.mergedExcavation=false;
+    if(!sharedSupports(p)||p.foundationSpacing<g.L)return total;
+    const spacing=p.foundationSpacing/1000,unionLength=L=>L+(N-1)*Math.min(L,spacing);
+    const area=z=>{const L=q.botL+2*p.slope*z,W=q.botW+2*p.slope*z;return unionLength(L)*W;};
+    const cut=p.slope>0?Math.max(0,Math.min(q.depth,(spacing-q.botL)/(2*p.slope))):0;
+    const integrate=(a,b)=>(b-a)/6*(area(a)+4*area((a+b)/2)+area(b));
+    total.excavation=integrate(0,cut)+integrate(cut,q.depth);
+    total.mergedExcavation=total.excavation<q.excavation*N-1e-8;
+    const subArea=unionLength(q.subL)*q.subW;
+    total.lean=subArea*p.lean/1000;total.stone=subArea*p.stone/1000;total.stoneArea=p.stone>0?subArea:0;
+    const buried=q.footing*N+g.cL*g.cW*g.embed*g.n/1e6*N+total.lean+total.stone;
+    total.backfill=Math.max(0,total.excavation-buried);
+    total.surplus=Math.max(0,total.excavation-total.backfill/p.soilC)*p.soilL;
+    total.borrow=Math.max(0,total.backfill/p.soilC-total.excavation);
+    return total;
+  }
+  function layout(span,cover,db,maxSpacing) {
+    const centerSpan=span-2*cover-db;
+    if(centerSpan<=0)throw new Error('철근 중심선 사이에 배치 공간이 없습니다.');
+    const n=Math.ceil(centerSpan/maxSpacing-EPS)+1;
+    return {n,actual:centerSpan/(n-1),start:cover+db/2,end:span-cover-db/2,centerSpan};
+  }
+  function flexCapacity(p,H,bar,As) {
+    const d=H-p.cover-1.5*bar.d,a=As*p.fy/(0.85*p.fck*1000);
+    const beta=Math.max(0.65,0.85-0.05*Math.max(0,p.fck-28)/7),c=a/beta;
+    const strain=c>0?0.003*(d-c)/c:Infinity;
+    return {d,a,strain,capacity:p.phiFlex*As*p.fy*(d-a/2)/1e6};
+  }
+  function reinforcement(p,g,l) {
+    const one=g.L/1000,two=g.W/1000;
+    const cantX=(g.L-g.cL)/2000,cantY=(g.W-g.cW)/2000;
+    const mx=l.qu*cantX*cantX/2,my=l.qu*cantY*cantY/2;
+    // A uniform maximum gross reaction is an explicit conservative strip envelope.
+    // It is valid for this screening model only while the complete base remains in compression.
+    const minAs=p.rho*1000*g.H;
+    function trial(code,s) {
+      const b=bars[code],x=layout(g.W,p.cover,b.d,s),y=layout(g.L,p.cover,b.d,s);
+      const asX=b.area*1000/x.actual,asY=b.area*1000/y.actual;
+      const fx=flexCapacity(p,g.H,b,asX),fy=flexCapacity(p,g.H,b,asY);
+      const clearMin=Math.max(25,b.d,4*p.aggregate/3);
+      const strengthOK=!canScreen(p)||(fx.capacity+EPS>=mx&&fy.capacity+EPS>=my&&Math.min(fx.strain,fy.strain)>=0.005);
+      const valid=asX+EPS>=minAs&&asY+EPS>=minAs&&strengthOK&&Math.min(x.actual,y.actual)-b.d>=clearMin&&g.H>2*p.cover+4*b.d;
+      return {code,b,s,x,y,asX,asY,fx,fy,valid,minAs,mx,my,clearMin};
+    }
+    let r;
+    if(p.rebarMode==='auto') {
+      const candidates=[];
+      for(const code of [13,16,19,22,25,29,32])for(const s of [250,225,200,175,150,125,100]) {
+        if(s>p.maxSpacing)continue;
+        const t=trial(code,s);if(t.valid)candidates.push(t);
+      }
+      candidates.sort((a,b)=>(a.x.n*(g.L-2*p.cover)+a.y.n*(g.W-2*p.cover))*a.b.kg-(b.x.n*(g.L-2*p.cover)+b.y.n*(g.W-2*p.cover))*b.b.kg||a.code-b.code);
+      r=candidates[0]||trial(32,100);
+    } else r=trial(p.bar,p.spacing);
+    const minD=Math.min(r.fx.d,r.fy.d),dM=minD/1000;
+    const vuX=l.qu*Math.max(0,cantX-dM),vuY=l.qu*Math.max(0,cantY-dM);
+    const vc=p.phiShear*0.17*Math.sqrt(p.fck)*1000*minD/1000;
+    const punchInside=(g.cL/1000+dM)*(g.cW/1000+dM);
+    const b0=2*(g.cL+g.cW+2*minD),beta=g.neck?Math.max(g.cL,g.cW)/Math.min(g.cL,g.cW):1;
+    const punchVu=l.qu*Math.max(0,one*two-punchInside);
+    const punchVc=p.phiShear*Math.min(0.17*(1+2/beta),0.083*(2+40*minD/b0),0.33)*Math.sqrt(p.fck)*b0*minD/1000;
+    const criticalFits=g.neck&&g.cL+minD<g.L&&g.cW+minD<g.W;
+    const ldAvail=Math.min(cantX,cantY)*1000-p.cover;
+    const rows=[];
+    function row(code,name,bar,count,length,note) {
+      if(count<=0)return;
+      if(length<=0||!Number.isFinite(length))throw new Error('철근 길이를 산출할 수 없습니다. 피복과 치수를 확인하세요.');
+      rows.push({code,name,bar,count,length,totalLength:count*length/1000,kg:count*length/1000*bars[bar].kg,note});
+    }
+    row('F1','하부 X방향 직선근',r.code,r.x.n,g.L-2*p.cover,`${r.x.n}본 / 실제 @${r.x.actual.toFixed(1)}`);
+    row('F2','하부 Y방향 직선근',r.code,r.y.n,g.W-2*p.cover,`${r.y.n}본 / 실제 @${r.y.actual.toFixed(1)}`);
+    row('F3','상부 X방향 직선근',r.code,r.x.n,g.L-2*p.cover,'하부와 같은 격자 · 상세검토용 초안');
+    row('F4','상부 Y방향 직선근',r.code,r.y.n,g.W-2*p.cover,'하부와 같은 격자 · 상세검토용 초안');
+    let neck=null;
+    if(g.neck) {
+      const tb=bars[p.tieBar];
+      const tieX=g.cL-2*p.neckCover-tb.d,tieY=g.cW-2*p.neckCover-tb.d;
+      if(Math.min(tieX,tieY)<=0)throw new Error('목 피복에 띠철근을 배치할 공간이 없습니다.');
+      let nb=p.neckBar,nx=p.neckNX,ny=p.neckNY;
+      if(p.rebarMode==='auto') {
+        // Preliminary minimum cage only. Axial force/moment interaction is not checked.
+        const choices=[];
+        for(const code of [16,19,22,25,29,32]) {
+          const b=bars[code],sx=g.cL-2*(p.neckCover+tb.d)-b.d,sy=g.cW-2*(p.neckCover+tb.d)-b.d;
+          const ax=Math.max(2,Math.ceil(sx/150)+1),ay=Math.max(2,Math.ceil(sy/150)+1),n=2*(ax+ay)-4;
+          if(n*b.area>=0.01*g.cL*g.cW)choices.push({code,ax,ay,n,kg:n*b.kg});
+        }
+        choices.sort((a,b)=>a.kg-b.kg);
+        if(!choices.length)throw new Error('목 철근의 예비 격자를 만들 수 없습니다. 목 치수를 확인하세요.');
+        nb=choices[0].code;nx=choices[0].ax;ny=choices[0].ay;
+      }
+      const b=bars[nb],longN=2*(nx+ny)-4,start=p.neckCover+tb.d+b.d/2;
+      const sx=(g.cL-2*start)/(nx-1),sy=(g.cW-2*start)/(ny-1);
+      if(Math.min(sx,sy)-b.d<Math.max(25,b.d,4*p.aggregate/3))throw new Error('목 주근 순간격이 부족합니다. 본수 또는 목 치수를 확인하세요.');
+      const ties=layout(g.cH,p.neckCover,tb.d,p.tieSpacing);
+      const rhoNeck=longN*b.area/(g.cL*g.cW);
+      const embedAvail=g.H-p.cover-2*r.b.d;
+      const tailAvail=Math.min((g.L-g.cL)/2,(g.W-g.cW)/2)-p.cover;
+      neck={bar:nb,b,nx,ny,longN,start,sx,sy,tieX,tieY,ties,tieBar:p.tieBar,rho:rhoNeck,embedAvail,tailAvail,tieLimit:Math.min(16*b.d,48*tb.d,Math.min(g.cL,g.cW)/2)};
+      row('P1','목 L형 주근 (정착 길이 입력)',nb,longN*g.n,g.cH-p.neckCover+p.dowelEmbed+p.dowelTail,`목당 ${longN}본 · 수직 ${g.cH-p.neckCover+p.dowelEmbed} + 꼬리 ${p.dowelTail} mm`);
+      row('P2','목 폐쇄 띠철근 (135° 갈고리 초안)',p.tieBar,ties.n*g.n,2*(tieX+tieY)+20*tb.d,`목당 ${ties.n}단 / 실제 @${ties.actual.toFixed(1)} · 갈고리 10db×2 가정`);
+      row('P3','목 보조띠 Y방향',p.tieBar,(nx-2)*ties.n*g.n,tieY+20*tb.d,'각 단의 중간 주근 횡지지 초안 · 10db×2 가정');
+      row('P4','목 보조띠 X방향',p.tieBar,(ny-2)*ties.n*g.n,tieX+20*tb.d,'각 단의 중간 주근 횡지지 초안 · 10db×2 가정');
+    }
+    const net=rows.reduce((s,r)=>s+r.kg,0);
+    return {...r,vuX,vuY,vc,punchVu,punchVc,criticalFits,ldAvail,neck,rows,net,gross:net*(1+p.rebarWaste/100)};
+  }
+  function checks(p,g,l,r) {
+    const supported=canScreen(p);
+    function c(label,demand,capacity,pass,detail,status) {return {label,demand:supported?demand:null,capacity:supported?capacity:null,pass:supported?pass:null,detail,status:supported?(status|| (pass?'충족':'미충족')):'미검토'};}
+    return [
+      c('연직 유효하중',l.N,0,l.N>0,'지하수 부력 차감 · 안정용 자중계수 적용'),
+      c('저면 전면 접지 (사용하중)',l.kern,1,l.N>0&&l.kern<=1+EPS,'6|ex|/L + 6|ey|/W ≤ 1 · 이축 편심'),
+      c('지반 지지력 (사용하중)',l.qmax,p.qa,l.N>0&&l.kern<=1+EPS&&l.qmax<=p.qa+EPS,'총 허용지지력 qa와 비교 · kPa'),
+      c('활동 안전율',l.fsSlide,p.fsTarget,l.N>0&&l.fsSlide+EPS>=p.fsTarget,'μN / √(Fx²+Fy²) · 수동토압 제외'),
+      c('전도 안전율 (두 축 합산)',l.fsOver,p.fsTarget,l.N>0&&l.fsOver+EPS>=p.fsTarget,'N / [2(Mx/W + My/L)] · 예비 지표'),
+      c('저면 전면 접지 (계수하중)',l.kernU,1,l.Nu>0&&l.kernU<=1+EPS,'계수반력도 전면 압축일 때만 휨·전단식 적용'),
+      c('푸팅 X방향 휨',r.mx,r.fx.capacity,r.fx.capacity+EPS>=r.mx&&r.fx.strain>=0.005&&l.kernU<=1,'최대 계수반력 균등분포의 1m 캔틸레버 · kN·m/m'),
+      c('푸팅 Y방향 휨',r.my,r.fy.capacity,r.fy.capacity+EPS>=r.my&&r.fy.strain>=0.005&&l.kernU<=1,'철근 2겹 중 작은 유효깊이 · kN·m/m'),
+      c('설정 최소 철근량 / 순간격',Math.min(r.asX,r.asY),r.minAs,r.valid&&Math.max(r.x.actual,r.y.actual)<=p.maxSpacing+EPS,'ρbh · 설정 검토값 / mm²/m'),
+      c('푸팅 1방향 전단',Math.max(r.vuX,r.vuY),r.vc,Math.max(r.vuX,r.vuY)<=r.vc+EPS&&l.kernU<=1,'목 면에서 d 위치 · λ=1, 단순식 · kN/m'),
+      c('직선근 정착 공간',p.ld,r.ldAvail,p.ld<=r.ldAvail+EPS,'입력 ld와 목 면부터 끝단까지 비교 · 정착 설계 별도'),
+      c('목 주근 정착 공간',p.dowelEmbed,r.neck?.embedAvail||0,!!r.neck&&p.dowelEmbed<=r.neck.embedAvail&&p.dowelTail<=r.neck.tailAvail,'입력 근입·꼬리 길이의 공간만 확인 · mm'),
+      c('목 띠근 간격 / 주근비 초안',r.neck?.ties.actual||0,r.neck?.tieLimit||0,!!r.neck&&r.neck.ties.actual<=r.neck.tieLimit+EPS&&r.neck.rho>=0.01-EPS&&r.neck.rho<=0.04+EPS,'min(16db주근, 48db띠근, 목 최소치수/2) · 주근비 1~4%의 예비 상세값 / P–M 별도'),
+      {label:'뚫림전단 · 축력 성분 추정',demand:supported&&r.criticalFits?r.punchVu:null,capacity:supported&&r.criticalFits?r.punchVc:null,pass:null,status:supported&&!r.criticalFits?'적용 범위 밖':'별도 검토',detail:supported&&!r.criticalFits?'목 면에서 d/2 떨어진 위험둘레가 푸팅 내부에 들어오지 않습니다. 현재 추정식은 적용하지 않으며 별도 검토가 필요합니다.':'축력 추정값만 표시 / 불균형 모멘트 전달 및 위험둘레 응력 분포 미검토'},
+      {label:'목 · 지주 · 앵커 · 접합부',demand:null,capacity:null,pass:null,status:'별도 검토',detail:'목 P–M, 지주 강도·좌굴, 앵커 인장·전단·콘크리트 파괴, 용접·베이스플레이트'},
+      {label:'침하 · 내진 · 현장 조건',demand:null,capacity:null,pass:null,status:'별도 검토',detail:'침하·회전·내진·동결심도·노출등급 피복·정착 및 이음 설계'}
+    ];
+  }
+  function evaluate(p,g) {
+    const q=earth(p,g),l=loads(p,g,q),r=reinforcement(p,g,l),c=checks(p,g,l,r);
+    return {g,q,l,r,checks:c,screenOK:canScreen(p)&&c.filter(x=>x.pass!==null).every(x=>x.pass)};
+  }
+  function calculate(raw) {
+    const p=validate(raw);let result,search=null;
+    if(p.mode==='auto') {
+      let best=null,count=0;
+      const minH=Math.ceil(Math.max(1500,p.dowelEmbed+p.cover+64)/100)*100;
+      for(let H=minH;H<=p.autoHMax+EPS;H+=100) {
+        for(let W=Math.ceil(Math.max(1500,p.cW+2*(p.ld+p.cover), (p.cL+2*(p.ld+p.cover))/p.aspect)/100)*100;W<=p.autoMax+EPS;W+=100) {
+          const L=Math.ceil(W*p.aspect/100)*100;if(L>p.autoMax)continue;
+          if(best&&L*W*H>=best.g.L*best.g.W*best.g.H)continue;
+          let g;try{g=geometry(p,L,W,H);}catch{continue;}
+          const q=earth(p,g),l=loads(p,g,q);count++;
+          if(l.N<=0||l.kern>1||l.kernU>1||l.qmax>p.qa||l.fsSlide<p.fsTarget||l.fsOver<p.fsTarget)continue;
+          const e=evaluate(p,g);
+          // Axial punching estimate is an additional sizing filter, never a final punching approval.
+          if(e.screenOK&&e.r.criticalFits&&e.r.punchVu<=e.r.punchVc){best=e;break;}
+        }
+      }
+      search={count,found:!!best,step:100};
+      if(best)result=best;
+      else {result=evaluate(p,geometry(p));result.screenOK=false;}
+    } else result=evaluate(p,geometry(p));
+    const {q,r,g,l}=result,N=p.qty,supports=supportCounts(p),quantities=aggregateQuantities(p,g,q);
+    const quantityTotals={'구조 콘크리트 · 푸팅':quantities.footing,'구조 콘크리트 · 목':quantities.neck,'구조 콘크리트 · 주문량':quantities.orderedConcrete,'거푸집 · 푸팅 측면':quantities.formFoot,'거푸집 · 목 측면':quantities.formNeck,'버림 콘크리트':quantities.lean,'잡석 지정':quantities.stone,'터파기 · 자연상태':quantities.excavation,'되메우기 · 다짐상태':quantities.backfill,'잔토 반출 · 흐트러진 상태':quantities.surplus,'되메움 추가 반입 · 자연상태':quantities.borrow};
+    const boq=[
+      ['구조 콘크리트 · 푸팅','m³',q.footing,`${g.L/1000}×${g.W/1000}×${g.H/1000}`],
+      ['구조 콘크리트 · 목','m³',q.neck,`${g.cL/1000}×${g.cW/1000}×${g.cH/1000}×${g.n}`],
+      ['구조 콘크리트 · 주문량','m³',q.orderedConcrete,`순체적 ${q.concrete.toFixed(3)} × (1+${p.concWaste}%) · 위 2행과 중복 합산 금지`],
+      ['거푸집 · 푸팅 측면','m²',q.formFoot,'2(L+W)H · 바닥·상면 제외'],
+      ['거푸집 · 목 측면','m²',q.formNeck,'2(cL+cW)cH×목 개수'],
+      ['버림 콘크리트','m³',q.lean,`(L+2Ow)(W+2Ow)×${p.lean/1000}`],
+      ['잡석 지정','m³',q.stone,`(L+2Ow)(W+2Ow)×${p.stone/1000}`],
+      ['터파기 · 자연상태','m³',q.excavation,`H/6(A하+A상+4A중) · 심도 ${q.depth.toFixed(3)}m`],
+      ['되메우기 · 다짐상태','m³',q.backfill,'터파기 − 지중 구조물·버림·잡석'],
+      ['잔토 반출 · 흐트러진 상태','m³',q.surplus,`max(터파기−되메우기/C,0)×L · C=${p.soilC}, L=${p.soilL} · 동일 토질 재사용 가정`],
+      ['되메움 추가 반입 · 자연상태','m³',q.borrow,'max(되메우기/C−터파기,0) · 동일 토질 재사용 가정'],
+      ['철근 · 순물량','kg',r.net,'Σ(본수×전개길이×규격 단위중량)'],
+      ['철근 · 할증 포함','kg',r.gross,`순물량×(1+${p.rebarWaste}%) · 이음길이 포함 아님`]
+    ].map(([name,unit,value,formula])=>({name,unit,value,total:quantityTotals[name]??value*N,formula:formula+(quantities.mergedExcavation&&['터파기 · 자연상태','되메우기 · 다짐상태','잔토 반출 · 흐트러진 상태','되메움 추가 반입 · 자연상태'].includes(name)?' · 같은 높이·같은 치수의 X방향 배치: 겹치는 굴착영역 중복 제거':'')}));
+    if(supports.known)boq.unshift({name:'기둥·지주 수량',unit:'본',value:supports.perFoundation,total:supports.total,formula:`기초 1개당 ${supports.perFoundation}본 × 같은 기초 ${N}개 · 지주 제작비 별도`});
+    const warnings=[
+      '예시 입력으로 산출하는 예비 검토·배근 초안입니다. 계산 항목 충족은 전체 구조 안전 또는 시공 승인 판정이 아닙니다.',
+      '지도 기본풍속은 2022년 공식 지도에서 판독한 기준지점 인근의 예비값입니다. 정밀 위치별 GIS 조회값이나 현장 확정값이 아닙니다. 경계·해안·산지·도서는 원문 등풍속선과 현장 지형을 확인하세요.',
+      '지도 모드는 V=V0·KD·Kzr·Kzt·Iw, p=0.5ρV²·Cf·G로 계산합니다. 주변 조도·지형·중요도·풍력·가스트 및 하중계수는 현장 기준에 맞춰 별도 확인해야 합니다.',
+      '정면·측면 풍하중을 동시에 작용시키는 보수적 가정입니다. 기초 위 흙의 안정 기여와 수동토압은 제외합니다.',
+      '목 철근은 1% 및 150mm 격자를 기준으로 한 초안이며 P–M 검증이 없습니다. 띠철근 갈고리·보조띠는 상세설계가 필요합니다.',
+      '전개길이는 중심선 개략값입니다. 절곡 공제·철근 이음·의자근·스페이서는 물량에 포함되지 않습니다. 앵커의 수량 산출은 앵커 강도 검증을 의미하지 않습니다.',
+      '강도 검토는 입력한 단일 하중계수 조합의 예비 계산입니다. 모든 하중조합 또는 500년 풍속에 대한 적용 하중계수의 적합성을 검증하지 않습니다.'
+    ];
+    if(p.type!=='single')warnings.unshift('이 기초 형식은 수량·배근 초안만 지원합니다. 독립기초 식으로 구조 충족 판정을 하지 않습니다. 매트의 건물 하중·줄기초의 선하중·복합기초 반력 분배는 별도 해석하세요.');
+    if(supports.shared){
+      warnings.unshift('전광판 1대 아래 여러 기초를 배치합니다. 기초별 하중·모멘트·들림 반력은 미배분이며, 입력한 동일 치수로 수량·설정 철근비의 배근 초안만 산출합니다. 구조 충족 판정과 자동 치수 선정은 제공하지 않습니다.');
+      if(p.foundationSpacing<g.L)warnings.unshift('기초 중심 간격이 푸팅 가로보다 작아 기초가 겹칩니다. 간격·치수를 수정하거나 통기초 형식을 검토하세요.');
+      const postExtent=(N-1)*p.foundationSpacing+(p.type==='combined'?p.postSpacing:0);
+      if(supports.known&&postExtent>p.signW)warnings.unshift('바깥 기둥 중심이 전광판 폭 밖에 있습니다. 기초 간격과 연결 프레임 배치를 확인하세요.');
+      if(quantities.mergedExcavation)warnings.push('같은 높이·같은 치수로 X방향에 나란히 놓는 기초의 겹치는 터파기 영역을 중복 제거했습니다. 각 기초의 1개 물량과 전체 토공 물량은 단순 배수와 다를 수 있습니다.');
+    }
+    if(search&&!search.found)warnings.unshift('지정한 탐색 한도 내에서 후보를 찾지 못했습니다. 화면의 치수는 수동 입력값이며 자동 추천 결과가 아닙니다.');
+    if(canScreen(p)&&(l.kern>1||l.kernU>1))warnings.unshift('저면 일부에 인장 반력이 계산됩니다. 표시 qmax는 전면 접지 가정값이며 유효 지반응력이 아닙니다. 휨·전단 예비 검토는 미충족 처리됩니다.');
+    if(p.columnShape!=='schematic'||p.plateShape==='circle')warnings.push('기둥 단면과 베이스플레이트 모양은 도면·그라우트 물량·앵커의 기하 배치에 반영합니다. 기둥 자중은 지주·프레임 총중량에 직접 입력하고 기둥 자체 풍하중은 추가 하중으로 반영하세요. 강재 기둥·플레이트·앵커·용접 강도와 너트·공구 여유는 별도 검토 대상입니다. 콘크리트 목은 사각 단면입니다.');
+    if(p.cover<75)warnings.push('푸팅 피복이 75mm 미만입니다. 지반 접촉·버림·노출 조건에 따른 요구 피복을 확인하세요.');
+    if(r.neck&&(r.neck.rho<0.01||r.neck.rho>0.04))warnings.push('목 주근 비율이 초안 검토범위 1~4%를 벗어납니다.');
+    return {p,...result,search,boq,warnings,supports,quantities,total:{foundations:N,posts:supports.total,concrete:quantities.concrete,orderedConcrete:quantities.orderedConcrete,form:quantities.form,excavation:quantities.excavation,rebarNet:r.net*N,rebarGross:r.gross*N},oldRebar:q.concrete*p.oldRatio*(1+p.rebarWaste/100)*N};
+  }
+  const api={bars,types,defaults,limits,validate,sharedSupports,canScreen,supportCounts,geometry,earth,loads,layout,flexCapacity,calculate};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FoundationEngine=api;
+})(typeof globalThis!=='undefined'?globalThis:this);
+
+;
+(function(root){
+'use strict';
+const xml=s=>String(s??'').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+function sheets(p,r){
+ const m=new Map(p.materials.map(m=>[m.id,m])),materialLabel=id=>{const a=m.get(id);return a?`${a.name} / ${a.grade} / ${a.finish}`:id;};
+ const generated=new Date().toLocaleString('ko-KR');
+ return [
+ {name:'산출요약',rows:[['항목','값','단위'],['프로젝트',p.name,''],['출력 시각',generated,''],['계산 상태',r.purchase.status==='ready'?'계산 완료':'미충족 조각 있음 — 발주 미확정',''],['가로',r.general.width,'mm'],['세로',r.general.height,'mm'],...(r.general.planes===2?[['깊이',r.general.depth,'mm']]:[['구성','한 겹 프레임 (깊이 해당 없음)','']]),['제작 수량',r.general.quantity,'대'],['보강 상하 연결재 자동 추가',r.general.planes===2?(r.general.verticalDepthTies?'사용':'사용 안함'):'단면: 해당 없음',''],['보강 상하 연결재 전체 수량',(r.depthConnectors?.length||0)*r.general.quantity,'개'],['보강 연결 위치 확인',(r.connectorWarnings||[]).join(' / ')||'추가 확인 항목 없음',''],['완성 총중량',r.totalWeight,'kg'],['프레임 중량',r.frameWeight,'kg'],['판재·부속품 중량',r.accessoryWeight,'kg'],['캐비닛 중량',r.cabinetWeight,'kg'],['기타 장비 중량',r.equipmentWeight-r.cabinetWeight,'kg'],['신규 구매',r.purchase.purchaseCount,'본'],['보유 자재 사용',r.purchase.inventoryUsed,'본'],['신규 구매 중량',r.purchase.purchaseWeight,'kg'],['재고 사용 중량',r.purchase.inventoryWeight,'kg'],['절단 횟수',r.purchase.cutCount,'회'],['이음 개소',r.purchase.jointCount,'개소'],['톱날 손실',p.cut.kerf,'mm'],['신규 원자재 양끝 정리',p.cut.endTrim,'mm/본'],['이음부당 겹침',p.cut.overlap,'mm'],['절단 단위',p.cut.precision||'원치수','mm'],['총비용',r.costs.total??'단가 미입력 또는 미충족','원'],['계산 범위','물량·중량 산출. 접합 상세·구조 안전성은 별도 검토. 참고 절단 배치이며 최적 구매량을 보장하지 않음.','']]},
+ {name:'발주서',rows:[['자재번호','자재명','재질','두께1(mm)','두께2(mm)','표면처리','단위중량(kg/m)','원자재(mm)','신규 본수','구매 중량(kg)','본당 가격(원)','금액(원)'],...r.purchase.groups.flatMap(g=>{const a=m.get(g.materialId),stock=new Map();for(const x of g.patterns.filter(p=>p.source==='purchase')){const key=x.length;if(!stock.has(key))stock.set(key,{count:0,price:x.price});stock.get(key).count+=x.repeat;}return [...stock].map(([length,s])=>[a.id,a.name,a.grade,a.t1??'미지정',a.t2,a.finish,a.kgm,length,s.count,length*s.count*a.kgm/1000,s.price??'미입력',s.price===null?'미입력':s.price*s.count]);}),...r.accessories.map(a=>[a.id,a.name,'부속품','','','','','',a.count,a.weight,a.unitPrice??'미입력',a.amount??'미입력'])]},
+ {name:'부재산출표',rows:[['부재번호','부재명','자재번호','규격·재질·처리','설계길이(mm)','제작길이(mm)','길이차(mm)','수량','총길이(m)','겹침길이(m)','중량(kg)','이음수'],...r.rows.map(a=>[a.id,a.name,a.materialId,materialLabel(a.materialId),a.designLength,a.length,a.delta,a.count,a.totalLength,a.overlapLength,a.weight,a.jointCount])]},
+ {name:'절단작업표',rows:[['패턴','자재','구분','재고번호','원자재(mm)','반복본수','절단조각','잔재(mm/본)','톱날손실(mm/본)','양끝정리(mm/본)','절단회수/본'],...r.purchase.patterns.map((a,i)=>[i+1,materialLabel(a.materialId),a.source==='inventory'?'보유 자재':a.extensionOnly?'연장용 신규':'기본 신규',a.source==='inventory'?a.sourceId:'',a.length,a.repeat,a.cuts.map(c=>`${c.rowId} ${c.extension?'연장 ':''}${c.length}mm × ${c.count}`).join(' / '),a.remainder,a.kerfLoss,a.trimLoss,a.cutCount])]},
+ {name:'연장계획',rows:[['부재번호','부재명','완성길이(mm)','부재수량','1개당 분할길이','전체 연장길이(m)','전체 겹침(m)','전체 이음개소'],...r.purchase.extensions.map(e=>[e.rowId,e.name,e.length,e.count,e.segments.map(x=>`${x.length} × ${x.count}`).join(' + '),e.extensionLength,e.overlap,e.totalJoints]),[],['미충족 부재','이름','조각 길이(mm)','미충족 수량'],...r.purchase.blocked.map(x=>[x.rowId,x.name,x.length,x.count])]},
+ {name:'재고사용계획',rows:[['재고번호','자재','보유길이(mm)','정리여유(mm/본)','보유수량','계획사용','미사용수량'],...r.purchase.inventoryStatus.map(a=>[a.id,materialLabel(a.materialId),a.length,a.trim,a.quantity,a.used,a.remaining]),[],['참고','계획만 산출하며 보유 수량은 자동 차감하지 않습니다.']]},
+ {name:'판재와부속품',rows:[['번호','이름','종류','가로(mm)','세로(mm)','두께(mm)','밀도(kg/m³)','개당중량(kg)','전체수량','전체중량(kg)','단가(원)','금액(원)'],...r.accessories.map(a=>[a.id,a.name,a.type==='plate'?'판재':'부속품',a.width||'',a.height||'',a.thickness||'',a.density||'',a.weightEach,a.count,a.weight,a.unitPrice??'미입력',a.amount??'미입력'])]},
+ {name:'견적',rows:[['구분','금액(원)','산정 기준'],['신규 자재',r.costs.materials,'신규 구매만 반영, 보유 재고 평가액 제외'],['판재·부속품',r.costs.accessories,'입력한 개당 단가 × 전체 수량'],['절단비',r.costs.cutting,`${r.purchase.cutCount}회 × ${p.cost.cutFee}원`],['이음 작업비',r.costs.splicing,`${r.purchase.jointCount}개소 × ${p.cost.spliceFee}원`],['제작비',r.costs.fabrication,'전체 작업 합계 입력'],['도장비',r.costs.painting,'전체 작업 합계 입력'],['운반비',r.costs.transport,'전체 작업 합계 입력'],['기타',r.costs.other,'전체 작업 합계 입력'],['입력 완료 금액 소계',r.costs.knownSubtotal,'미입력 항목 제외'],['입력 세율 적용액',r.costs.tax,`${p.cost.taxRate}%`],['전체 합계',r.costs.total??'미확정','단가 미입력·조각 미충족이면 확정 합계 표시 안 함']]}
+ ];
+}
+function csv(p,r){return '\ufeff'+sheets(p,r).flatMap(s=>[[s.name],...s.rows,[]]).map(row=>row.map(v=>{let x=String(v??'');if(/^[=+@-]/.test(x))x="'"+x;return '"'+x.replaceAll('"','""')+'"';}).join(',')).join('\r\n');}
+const encoder=new TextEncoder();
+function crc(bytes){let c=0xffffffff;for(const b of bytes){c^=b;for(let i=0;i<8;i++)c=(c>>>1)^((c&1)?0xedb88320:0);}return(c^0xffffffff)>>>0;}
+function zip(entries){
+ const locals=[],central=[];let offset=0;
+ const record=(size)=>{const b=new Uint8Array(size);return [b,new DataView(b.buffer)];};
+ for(const[name,content]of entries){const n=encoder.encode(name),data=typeof content==='string'?encoder.encode(content):content,checksum=crc(data),[local,v]=record(30+n.length+data.length);v.setUint32(0,0x04034b50,true);v.setUint16(4,20,true);v.setUint16(6,0x0800,true);v.setUint32(14,checksum,true);v.setUint32(18,data.length,true);v.setUint32(22,data.length,true);v.setUint16(26,n.length,true);local.set(n,30);local.set(data,30+n.length);locals.push(local);
+   const[c,z]=record(46+n.length);z.setUint32(0,0x02014b50,true);z.setUint16(4,20,true);z.setUint16(6,20,true);z.setUint16(8,0x0800,true);z.setUint32(16,checksum,true);z.setUint32(20,data.length,true);z.setUint32(24,data.length,true);z.setUint16(28,n.length,true);z.setUint32(42,offset,true);c.set(n,46);central.push(c);offset+=local.length;
+ }
+ const size=central.reduce((n,c)=>n+c.length,0),[end,v]=record(22);v.setUint32(0,0x06054b50,true);v.setUint16(8,entries.length,true);v.setUint16(10,entries.length,true);v.setUint32(12,size,true);v.setUint32(16,offset,true);const out=new Uint8Array(offset+size+22);let at=0;for(const part of [...locals,...central,end]){out.set(part,at);at+=part.length;}return out;
+}
+function column(index){let s='';for(let n=index+1;n;n=Math.floor((n-1)/26))s=String.fromCharCode(65+(n-1)%26)+s;return s;}
+function xlsx(p,r){
+ return workbook(sheets(p,r));
+}
+function workbook(tables){
+ const ns='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+ const entries=[['[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${tables.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`],['_rels/.rels','<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],['xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="${ns}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${tables.map((s,i)=>`<sheet name="${xml(s.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets></workbook>`],['xl/_rels/workbook.xml.rels',`<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${tables.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="styles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],['xl/styles.xml',`<?xml version="1.0"?><styleSheet xmlns="${ns}"><numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.###"/></numFmts><fonts count="2"><font><sz val="11"/><name val="맑은 고딕"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="맑은 고딕"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF172B46"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment vertical="top" wrapText="1"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFill="1" applyFont="1"><alignment vertical="center" wrapText="1"/></xf><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"><alignment vertical="top"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`]];
+ tables.forEach((s,i)=>{const cols=Math.max(...s.rows.map(r=>r.length));entries.push([`xl/worksheets/sheet${i+1}.xml`,`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="${ns}"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${Array.from({length:cols},(_,i)=>`<col min="${i+1}" max="${i+1}" width="${i===1||i===6?38:22}" customWidth="1"/>`).join('')}</cols><sheetData>${s.rows.map((row,ri)=>`<row r="${ri+1}"${ri===0?' ht="32" customHeight="1"':''}>${row.map((value,ci)=>{const cell=column(ci)+(ri+1);return typeof value==='number'&&Number.isFinite(value)?`<c r="${cell}" s="${ri===0?1:2}"><v>${value}</v></c>`:`<c r="${cell}" s="${ri===0?1:0}" t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`;}).join('')}</row>`).join('')}</sheetData><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/><pageSetup orientation="landscape" paperSize="9" fitToWidth="1" fitToHeight="0"/></worksheet>`]);});
+ return zip(entries);
+}
+const api={sheets,csv,xlsx,workbook,xml};root.FrameExport=api;if(typeof module==='object')module.exports=api;
+})(typeof globalThis==='object'?globalThis:this);
+
+;
+(function(){
+  'use strict';
+  // Quantity-only screen: the same FoundationEngine geometry/earthwork/rebar formulas, fixed (manual) dimensions, no wind or soil checks.
+  const E=FoundationEngine,$=id=>document.getElementById(id),KEY='foundation-quantity-v1';
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const NUM=['L','W','H','qty','cL','cW','cH','above','postSpacing','lean','stone','ow','work','slope','concWaste','rebarWaste','soilL','soilC','spacing','cover','neckNX','neckNY','tieSpacing','dowelEmbed'];
+  const SEL=['type','bar','neckBar','tieBar'];
+  const LABELS={L:'푸팅 가로',W:'푸팅 세로',H:'푸팅 두께',qty:'기초 개수',cL:'목 가로',cW:'목 세로',cH:'목 전체 높이',above:'지상 노출 높이',postSpacing:'두 목 중심 간격',lean:'버림 두께',stone:'잡석 두께',ow:'버림·잡석 좌우 여유',work:'굴착 바닥 작업 여유',slope:'굴착 물매',concWaste:'콘크리트 할증',rebarWaste:'철근 할증',soilL:'토량 팽창계수',soilC:'토량 다짐계수',spacing:'푸팅 철근 간격',cover:'푸팅 피복',neckNX:'목 X면 주근 수',neckNY:'목 Y면 주근 수',tieSpacing:'띠철근 간격',dowelEmbed:'목 주근 근입'};
+  const DEFAULTS={type:'single',L:2500,W:2500,H:1600,qty:1,cL:800,cW:800,cH:1000,above:300,postSpacing:3500,lean:100,stone:200,ow:100,work:300,slope:0,concWaste:1,rebarWaste:3,soilL:1.2,soilC:1,bar:'19',spacing:200,cover:75,neckBar:'22',neckNX:6,neckNY:6,tieBar:'10',tieSpacing:150,dowelEmbed:500,rebarOn:true};
+  const fmt=(v,d=3)=>Number.isFinite(v)?v.toLocaleString('ko-KR',{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
+  const digits=unit=>unit==='kg'?1:unit==='본'||unit==='개'?0:3;
+  let last=null,timer=null;
+
+  for(const id of ['bar','neckBar','tieBar'])$(id).innerHTML=Object.keys(E.bars).map(v=>`<option value="${v}">D${v}</option>`).join('');
+  function fill(v){for(const id of [...NUM,...SEL])$(id).value=String(v[id]);$('rebar-on').checked=v.rebarOn!==false;layout();}
+  function layout(){
+    const type=$('type').value,neck=type!=='block';
+    $('neck-card').hidden=!neck;$('post-spacing-field').hidden=type!=='combined';
+    for(const n of document.querySelectorAll('.neck-only'))n.hidden=!neck;$('rebar-fields').hidden=!$('rebar-on').checked;
+  }
+  function read(){
+    const v={type:$('type').value,bar:$('bar').value,neckBar:$('neckBar').value,tieBar:$('tieBar').value,rebarOn:$('rebar-on').checked},bad=[];
+    for(const id of NUM){
+      const node=$(id),raw=node.value.trim(),n=Number(raw);node.removeAttribute('aria-invalid');
+      const hidden=node.closest('[hidden]');if(hidden){v[id]=DEFAULTS[id];continue;}
+      if(raw===''||!Number.isFinite(n)){node.setAttribute('aria-invalid','true');bad.push(LABELS[id]);continue;}
+      v[id]=n;
+    }
+    return {v,bad};
+  }
+  function params(v){
+    const neck=v.type!=='block';
+    return {type:v.type,mode:'manual',rebarMode:'manual',installMode:'repeat',qty:v.qty,L:v.L,W:v.W,H:v.H,
+      cL:neck?v.cL:DEFAULTS.cL,cW:neck?v.cW:DEFAULTS.cW,cH:neck?v.cH:DEFAULTS.cH,above:neck?v.above:0,postSpacing:v.postSpacing,
+      bottom:Math.max(3,(neck?v.above:0)/1000+0.1),lean:v.lean,stone:v.stone,ow:v.ow,work:v.work,slope:v.slope,concWaste:v.concWaste,rebarWaste:v.rebarWaste,soilL:v.soilL,soilC:v.soilC,
+      bar:Number(v.bar),spacing:v.spacing,cover:v.cover,neckBar:Number(v.neckBar),neckNX:v.neckNX,neckNY:v.neckNY,tieBar:Number(v.tieBar),tieSpacing:v.tieSpacing,dowelEmbed:v.dowelEmbed,
+      // Not used for quantities; fixed so validation never depends on wind or soil.
+      signW:Math.max(100,v.L),signH:2000,signDepth:250,panelKgM2:45,postKg:250,extraKg:0,windMode:'pressure',pressure:1.5};
+  }
+  function friendly(message){
+    const m=String(message).match(/^(\w+):\s*([\d.\-]+)~([\d.\-]+)/);
+    if(m&&LABELS[m[1]]){const node=$(m[1]);node?.setAttribute('aria-invalid','true');return `${LABELS[m[1]]}은(는) ${Number(m[2]).toLocaleString('ko-KR')}~${Number(m[3]).toLocaleString('ko-KR')} 범위로 입력하세요.`;}
+    if(/^(bar|neckBar|tieBar)/.test(message))return '철근 규격을 확인하세요.';
+    return String(message).replace(/^\w+:\s*/,'');
+  }
+  function quantities(r,rebarOn){
+    return r.boq.filter(b=>b.name!=='기둥·지주 수량'&&(rebarOn||!/^철근/.test(b.name))&&!(r.p.type==='block'&&/목/.test(b.name))).map(b=>({name:b.name,unit:b.unit,one:b.value,total:b.total,formula:b.formula}));
+  }
+
+  // Plain-language names, construction order and explanations with the actual numbers substituted.
+  const GROUPS=[
+    ['1. 땅 파기',[['터파기 · 자연상태','터파기 (파낸 흙)']]],
+    ['2. 바닥 만들기',[['잡석 지정','잡석 깔기'],['버림 콘크리트','버림 콘크리트']]],
+    ['3. 기초 만들기',[['거푸집 · 푸팅 측면','푸팅 거푸집'],['거푸집 · 목 측면','목 거푸집'],['구조 콘크리트 · 푸팅','푸팅 콘크리트'],['구조 콘크리트 · 목','목 콘크리트'],['구조 콘크리트 · 주문량','콘크리트 타설 주문량'],['철근 · 순물량','철근 (손실 제외)'],['철근 · 할증 포함','철근 주문량']]],
+    ['4. 흙 정리',[['되메우기 · 다짐상태','되메우기'],['잔토 반출 · 흐트러진 상태','남는 흙 반출'],['되메움 추가 반입 · 자연상태','모자란 흙 반입']]]];
+  const m=(x,d=2)=>fmt(x/1000,d),n3=x=>fmt(x,3);
+  function explain(name,r){
+    const p=r.p,g=r.g,q=r.q,tb=p.lean/1000,tr=p.stone/1000,ow=p.ow/1000,work=p.work/1000,neckCount=g.n,unders=q.buried;
+    const perimeter=2*(g.L+g.W)/1000,neckPerimeter=2*(g.cL+g.cW)/1000;
+    switch(name){
+      case '터파기 · 자연상태':return [`깊이 ${fmt(q.depth,2)} m × 바닥 ${fmt(q.botL,2)} m × ${fmt(q.botW,2)} m${p.slope>0?` (윗면은 경사로 ${fmt(q.topL,2)} m × ${fmt(q.topW,2)} m)`:''} = ${n3(q.excavation)} m³`,`깊이 = ${g.neck?`땅에 묻히는 목 ${fmt(g.embed,2)} + `:''}푸팅 ${m(g.H)} + 버림 ${fmt(tb,2)} + 잡석 ${fmt(tr,2)} m. 바닥 = 기초보다 사방 ${fmt(ow+work,2)} m 넓게(작업 공간).`];
+      case '잡석 지정':return [`${fmt(q.subL,2)} m × ${fmt(q.subW,2)} m × 두께 ${fmt(tr,2)} m = ${n3(q.stone)} m³`,`맨 아래에 깔고 다지는 돌. 기초보다 사방 ${fmt(ow,2)} m 넓게 깝니다.`];
+      case '버림 콘크리트':return [`${fmt(q.subL,2)} m × ${fmt(q.subW,2)} m × 두께 ${fmt(tb,2)} m = ${n3(q.lean)} m³`,'잡석 위에 얇게 치는 바닥 콘크리트. 먹줄을 놓고 철근을 세우는 받침입니다.'];
+      case '거푸집 · 푸팅 측면':return [`둘레 ${fmt(perimeter,2)} m × 높이 ${m(g.H)} m = ${n3(q.formFoot)} m²`,'콘크리트를 붓기 전에 옆면을 막는 틀. 바닥과 윗면은 빼고 4면만 셉니다.'];
+      case '거푸집 · 목 측면':return [`둘레 ${fmt(neckPerimeter,2)} m × 높이 ${m(g.cH)} m${neckCount>1?` × ${neckCount}개`:''} = ${n3(q.formNeck)} m²`,'목(기둥 받침)의 4면 틀입니다.'];
+      case '구조 콘크리트 · 푸팅':return [`가로 ${m(g.L)} × 세로 ${m(g.W)} × 두께 ${m(g.H)} m = ${n3(q.footing)} m³`,'기초 판(푸팅)의 부피입니다.'];
+      case '구조 콘크리트 · 목':return [`가로 ${m(g.cL)} × 세로 ${m(g.cW)} × 높이 ${m(g.cH)} m${neckCount>1?` × ${neckCount}개`:''} = ${n3(q.neck)} m³`,'푸팅 위에 올라오는 목(기둥 받침)의 부피입니다.'];
+      case '구조 콘크리트 · 주문량':return [`(푸팅 ${n3(q.footing)}${g.neck?` + 목 ${n3(q.neck)}`:''}) × 손실 여유 ${fmt(p.concWaste,1)}% = ${n3(q.orderedConcrete)} m³`,'레미콘 주문에 쓰는 값입니다. 위 푸팅·목 콘크리트를 이미 포함하므로 따로 더하지 마세요.'];
+      case '철근 · 순물량':return [`본수 × 길이 × 규격별 무게(kg/m)의 합 = ${fmt(r.r.net,1)} kg`,'부위별 본수와 길이는 아래 ‘철근 상세’에 있습니다. 이음·스페이서는 제외입니다.'];
+      case '철근 · 할증 포함':return [`${fmt(r.r.net,1)} kg × 손실 여유 ${fmt(p.rebarWaste,1)}% = ${fmt(r.r.gross,1)} kg`,'철근 주문에 쓰는 값입니다.'];
+      case '되메우기 · 다짐상태':return [`파낸 흙 ${n3(q.excavation)} − 땅속에 들어간 것 ${n3(unders)} = ${n3(q.backfill)} m³`,'땅속에 들어간 것 = 푸팅·묻힌 목·버림·잡석. 남은 빈 공간을 흙으로 다시 채웁니다.'];
+      case '잔토 반출 · 흐트러진 상태':return [`(파낸 흙 ${n3(q.excavation)} − 되메우기 ${n3(q.backfill)}${p.soilC!==1?` ÷ ${p.soilC}`:''}) × 부풀음 ${p.soilL}배 = ${n3(q.surplus)} m³`,`되메우고 남는 흙을 실어 낼 양입니다. 파낸 흙은 부풀어 부피가 ${p.soilL}배가 됩니다(트럭 기준).`];
+      case '되메움 추가 반입 · 자연상태':return [q.borrow>0?`되메우기 ${n3(q.backfill)}${p.soilC!==1?` ÷ ${p.soilC}`:''} − 파낸 흙 ${n3(q.excavation)} = ${n3(q.borrow)} m³`:'파낸 흙으로 충분해 반입할 흙이 없습니다 = 0 m³','파낸 흙이 되메우기에 모자랄 때만 생깁니다.'];
+    }
+    return ['',''];
+  }
+  function section(r,compact){
+    const p=r.p,g=r.g,q=r.q,tb=p.lean/1000,tr=p.stone/1000,L=g.L/1000,H=g.H/1000,cL=g.cL/1000,above=g.above/1000,embed=g.embed,depth=q.depth;
+    const fs=compact?19:14,W=compact?420:720,left=compact?20:160,drawW=compact?380:360,top=compact?30:34,drawH=compact?250:230;
+    const s=Math.min(drawW/q.topL,drawH/(depth+above)),cx=left+drawW/2,gl=top+above*s,X=x=>(cx+x*s).toFixed(1),Y=y=>gl+y*s;
+    const rect=(x1,y1,x2,y2,cls)=>`<rect x="${X(x1)}" y="${Y(y1).toFixed(1)}" width="${((x2-x1)*s).toFixed(1)}" height="${((y2-y1)*s).toFixed(1)}" class="${cls}"/>`;
+    const text=(x,y,t,cls='',anchor='start')=>`<text x="${x}" y="${y.toFixed?y.toFixed(1):y}" text-anchor="${anchor}" class="lbl ${cls}" style="font-size:${cls.includes('muted')?fs-1:fs}px">${t}</text>`;
+    const bracket=(x,y1,y2,cls='')=>`<g class="dim ${cls}"><line x1="${x}" y1="${y1.toFixed(1)}" x2="${x}" y2="${y2.toFixed(1)}"/><line x1="${x-5}" y1="${y1.toFixed(1)}" x2="${x+5}" y2="${y1.toFixed(1)}"/><line x1="${x-5}" y1="${y2.toFixed(1)}" x2="${x+5}" y2="${y2.toFixed(1)}"/></g>`;
+    const necks=g.neck?g.pedestals.map(c=>rect(c/1000-cL/2,-above,c/1000+cL/2,embed,'conc')).join(''):'';
+    const height=Math.ceil(Y(depth)+fs*3);
+    let svg=`<svg viewBox="0 0 ${W} ${height}" role="img" aria-label="기초 단면 그림: 터파기, 잡석, 버림, 푸팅, 목"><line x1="4" y1="${Y(0)}" x2="${W-4}" y2="${Y(0)}" class="gl"/>${text(6,Y(0)-8,'지면',`muted`)}`;
+    svg+=`<polygon points="${X(-q.topL/2)},${Y(0)} ${X(q.topL/2)},${Y(0)} ${X(q.botL/2)},${Y(depth)} ${X(-q.botL/2)},${Y(depth)}" class="soil"/>`;
+    svg+=rect(-q.subL/2,depth-tr,q.subL/2,depth,'stone')+rect(-q.subL/2,depth-tr-tb,q.subL/2,depth-tr,'lean')+rect(-L/2,embed,L/2,embed+H,'conc')+necks;
+    svg+=text(cx,Y(embed+H/2)+fs/3,`푸팅 ${fmt(L,2)} m`,'on-conc','middle');
+    const yb=Y(depth)+fs+4;svg+=`<line x1="${X(-q.botL/2)}" y1="${(yb-fs/2).toFixed(1)}" x2="${X(q.botL/2)}" y2="${(yb-fs/2).toFixed(1)}" class="dim-line"/>`+text(cx,yb+fs*0.9,`굴착 바닥 ${fmt(q.botL,2)} m`,'','middle');
+    if(!compact){
+      const marks=[];if(g.neck&&above>0)marks.push([-above,0,`지상 목 ${fmt(above,2)} m`]);if(g.neck&&embed>0)marks.push([0,embed,`묻힌 목 ${fmt(embed,2)} m`]);marks.push([embed,embed+H,`푸팅 두께 ${fmt(H,2)} m`]);if(tb>0)marks.push([embed+H,embed+H+tb,`버림 ${fmt(tb,2)} m`]);if(tr>0)marks.push([depth-tr,depth,`잡석 ${fmt(tr,2)} m`]);
+      const x=left+drawW+28;let last=-Infinity;for(const [a,b2,t] of marks){const ya=Y(a),yb2=Y(b2),mid=Math.max((ya+yb2)/2+5,last+fs+4);last=mid;svg+=bracket(x,ya,yb2)+text(x+12,mid,t);}
+      const dx=left-28;svg+=bracket(dx,Y(0),Y(depth),'strong')+text(dx-10,Y(depth/2)-4,'굴착 깊이','strong','end')+text(dx-10,Y(depth/2)+fs+2,`${fmt(depth,2)} m`,'strong','end');
+    }
+    return svg+'</svg>';
+  }
+  function layers(r){
+    const p=r.p,g=r.g,q=r.q,list=[];if(g.neck&&g.above>0)list.push(`지상 목 ${fmt(g.above/1000,2)}`);if(g.neck&&g.embed>0)list.push(`묻힌 목 ${fmt(g.embed,2)}`);list.push(`푸팅 ${fmt(g.H/1000,2)}`);if(p.lean>0)list.push(`버림 ${fmt(p.lean/1000,2)}`);if(p.stone>0)list.push(`잡석 ${fmt(p.stone/1000,2)}`);
+    return `<p class="layers"><strong>굴착 깊이 ${fmt(q.depth,2)} m</strong> = ${list.filter(x=>!/지상/.test(x)).join(' + ')} m${g.neck&&g.above>0?` · 지상 노출 ${fmt(g.above/1000,2)} m`:''}</p>`;
+  }
+  function render(){
+    const {v,bad}=read();layout();
+    if(bad.length){showError(bad.join(', ')+' 값을 입력하세요.');return;}
+    let r;try{r=E.calculate(params(v));}catch(error){showError(friendly(error.message));return;}
+    $('error').hidden=true;$('result').classList.remove('stale');
+    const rows=quantities(r,v.rebarOn),n=r.p.qty,q=r.q,g=r.g,byName=name=>rows.find(x=>x.name===name);
+    last={v,r,rows};
+    const neck=g.neck?` · 목 ${fmt(g.cL,0)}×${fmt(g.cW,0)}×${fmt(g.cH,0)}${g.n>1?' ×'+g.n:''}`:'';
+    $('result-sub').textContent=`푸팅 ${fmt(g.L,0)}×${fmt(g.W,0)}×${fmt(g.H,0)} mm${neck} · 굴착 깊이 ${fmt(q.depth,2)} m · 굴착 바닥 ${fmt(q.botL,2)}×${fmt(q.botW,2)} m${q.topL!==q.botL?` · 상부 ${fmt(q.topL,2)}×${fmt(q.topW,2)} m`:''} · 기초 ${n}개`;
+    $('total-head').textContent=n>1?`전체 (×${n})`:'수량';$('per-one-note').hidden=n===1;$('per-one-note').textContent=`계산식은 기초 1개 기준입니다. ‘전체’는 1개 수량 × ${n}개입니다.`;$('result').classList.toggle('single',n===1);
+    const key=[['터파기','터파기 · 자연상태'],['콘크리트 타설','구조 콘크리트 · 주문량'],['버림 콘크리트','버림 콘크리트'],['잡석','잡석 지정'],['되메우기','되메우기 · 다짐상태'],['잔토 반출','잔토 반출 · 흐트러진 상태'],...(v.rebarOn?[['철근 (할증 포함)','철근 · 할증 포함']]:[])];
+    const form=byName('거푸집 · 푸팅 측면').total+(byName('거푸집 · 목 측면')?.total||0);
+    $('key-figures').innerHTML=key.map(([label,name])=>{const x=byName(name);return x?`<div class="figure"><span>${label}</span><strong>${fmt(x.total,digits(x.unit))}<small>${x.unit}</small></strong>${n>1?`<em>1개 ${fmt(x.one,digits(x.unit))} ${x.unit}</em>`:''}</div>`:'';}).join('')+`<div class="figure"><span>거푸집 합계</span><strong>${fmt(form,3)}<small>m²</small></strong>${n>1?`<em>1개 ${fmt(form/n,3)} m²</em>`:''}</div>`;
+    $('boq').innerHTML=GROUPS.map(([group,items])=>{const list=items.map(([name,label])=>({x:byName(name),label})).filter(i=>i.x);if(!list.length)return '';return `<tr class="group"><th colspan="3" scope="rowgroup">${group}</th></tr>`+list.map(({x,label})=>{const [how,why]=explain(x.name,r);return `<tr${/주문량|터파기|철근 주문/.test(label)?' class="strong"':''}><th scope="row"><span class="item">${esc(label)}</span><span class="how">${esc(how)}</span><span class="why">${esc(why)}</span></th><td class="num one">${fmt(x.one,digits(x.unit))}<span class="u">${esc(x.unit)}</span></td><td class="num">${fmt(x.total,digits(x.unit))}<span class="u">${esc(x.unit)}</span></td></tr>`;}).join('');}).join('');
+    const compact=($('section-drawing').clientWidth||700)<560;$('section-drawing').innerHTML=section(r,compact)+layers(r);
+    $('rebar-detail').hidden=!v.rebarOn;
+    $('rebar-rows').innerHTML=r.r.rows.map(b=>`<tr><td>${esc(b.code)}</td><td>${esc(b.name)}</td><td>D${b.bar}</td><td class="num">${fmt(b.count,0)}</td><td class="num">${fmt(b.length,0)}</td><td class="num">${fmt(b.kg,1)}</td></tr>`).join('');
+    try{localStorage.setItem(KEY,JSON.stringify(v));}catch{}
+  }
+  function showError(text){$('error').textContent=text;$('error').hidden=false;$('result').classList.add('stale');last=null;}
+  function schedule(){clearTimeout(timer);timer=setTimeout(render,120);}
+  function tables(){
+    if(!last)throw Error('입력 오류를 먼저 수정하세요.');const {r,rows,v}=last,n=r.p.qty;
+    const t=[{name:'기초물량',rows:[['전광판 기초 물량',$('result-sub').textContent,'','',''],['공종','1개','전체 (×'+n+')','단위','계산 방법','설명'],...GROUPS.flatMap(([group,items])=>items.map(([name,label])=>({x:rows.find(y=>y.name===name),label})).filter(i=>i.x).map(({x,label})=>{const [how,why]=explain(x.name,r);return [label,round(x.one,digits(x.unit)),round(x.total,digits(x.unit)),x.unit,how,why];}))]}];
+    if(v.rebarOn)t.push({name:'철근상세',rows:[['기호','부위','규격','1개 본수','길이(mm)','1개 중량(kg)','전체 중량(kg)','비고'],...r.r.rows.map(b=>[b.code,b.name,'D'+b.bar,b.count,round(b.length,0),round(b.kg,1),round(b.kg*n,1),b.note])]});
+    return t;
+  }
+  const round=(x,d)=>Math.round(x*10**d)/10**d;
+  function download(data,name,type){const url=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
+  function guard(fn){return()=>{clearTimeout(timer);render();try{fn();}catch(e){showError(e.message);}};}
+  $('form').addEventListener('input',schedule);$('form').addEventListener('change',()=>{clearTimeout(timer);render();});
+  $('reset').addEventListener('click',()=>{fill(DEFAULTS);render();});
+  $('save-xlsx').addEventListener('click',guard(()=>download(FrameExport.workbook(tables()),'기초_물량.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')));
+  $('save-csv').addEventListener('click',guard(()=>{const csv='﻿'+tables().flatMap(s=>[[s.name],...s.rows,[]]).map(row=>row.map(x=>'"'+String(x??'').replaceAll('"','""')+'"').join(',')).join('\r\n');download(csv,'기초_물량.csv','text/csv;charset=utf-8');}));
+  $('print').addEventListener('click',guard(()=>window.print()));
+  window.addEventListener('beforeprint',()=>{if(last?.v.rebarOn)$('rebar-detail').open=true;});
+  let saved=null;try{saved=JSON.parse(localStorage.getItem(KEY)||'null');}catch{}
+  fill({...DEFAULTS,...(saved&&typeof saved==='object'?saved:{})});render();
+  let width=0;window.addEventListener('resize',()=>{const w=$('section-drawing').clientWidth;if(Math.abs(w-width)>40){width=w;schedule();}});
+  window.FoundationQuantity={render,read:()=>read().v,getResult:()=>last};
+})();
+</script></body></html>

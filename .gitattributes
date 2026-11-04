@@ -1,0 +1,5 @@
+# Keep LF on checkout so rebuilt single-file HTML stays byte-identical to the committed copy.
+* text=auto eol=lf
+*.png binary
+*.pdf binary
+*.dxf text eol=lf

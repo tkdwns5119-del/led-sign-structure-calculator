@@ -1,3 +1,18 @@
 .sites-runtime/
 *.zip
 *.log
+# Unrelated local meeting-analysis artifacts are not Site source.
+.meeting-model/
+.meeting-tools/
+meeting_transcribe.py
+회의분석_260921/
+# Bundled workbook runtime junction and internal design-build artifacts.
+tools/foundation-excel-design/node_modules/
+tools/foundation-excel-design/tmp/
+tools/foundation-dxf-verify/tmp/
+# Scratch work, unrelated outputs (AutoCAD title blocks, folder manager) and folder-copy backups replaced by Git history.
+tmp/
+output/
+outputs/
+_수정전_백업_*/
+acad.err

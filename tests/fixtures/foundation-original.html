@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>전광판 기초 수량 자동산출기 (주각부/목 분리형 - 지능형 자동연동)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    }
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      opacity: 0.6;
+    }
+    .badge-auto {
+      background-color: #ecfdf5;
+      color: #059669;
+      border: 1px solid #a7f3d0;
+    }
+    .badge-manual {
+      background-color: #fff7ed;
+      color: #d97706;
+      border: 1px solid #fed7aa;
+    }
+    @media print {
+      body { background-color: #fff !important; color: #000 !important; }
+      .no-print { display: none !important; }
+      .print-shadow-none { box-shadow: none !important; border: 1px solid #cbd5e1 !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 bg-blue-600 rounded-xl text-white shadow-sm flex items-center justify-center">
+          <i data-lucide="layers" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-base sm:text-lg font-bold tracking-tight text-white">전광판 기초 수량 자동산출기</h1>
+            <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-semibold px-2 py-0.5 rounded-full">지능형 자동연동 v2.5</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">주각부(목) 분리 적산 · 표준품셈 기준값 자동산출 및 수동 편집 지원</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-2 no-print">
+        <button id="btnCopyTsv" class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium px-3 py-2 rounded-lg border border-slate-700 transition">
+          <i data-lucide="copy" class="w-4 h-4 text-blue-400"></i>
+          <span>엑셀 복사</span>
+        </button>
+        <button id="btnDownloadCsv" class="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg shadow-sm transition">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span>CSV 다운로드</span>
+        </button>
+        <button id="btnPrint" class="flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium px-3 py-2 rounded-lg border border-slate-700 transition">
+          <i data-lucide="printer" class="w-4 h-4 text-emerald-400"></i>
+          <span class="hidden md:inline">인쇄</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none flex items-center space-x-2 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-2xl border border-slate-700">
+    <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400"></i>
+    <span id="toastMsg">클립보드에 복사되었습니다.</span>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 w-full flex-grow">
+
+    <!-- Foundation Type Tab Navigator -->
+    <div class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200 mb-4 no-print space-y-3">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-100">
+        <span class="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center">
+          <i data-lucide="component" class="w-4 h-4 mr-1.5 text-blue-600"></i> 기초 형식 선택 (Foundation Type)
+        </span>
+        <span id="currentTypeDesc" class="text-xs text-blue-600 font-semibold hidden md:inline">단주식 지주 전광판 표준 (상부 주각부 목 + 하부 넓은 푸팅 패드)</span>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2" id="typeTabGroup">
+        <button type="button" data-type="single_pedestal" class="tab-btn px-3 py-2.5 rounded-xl text-xs font-bold border transition text-center bg-blue-600 text-white border-blue-600 shadow-sm">
+          <div class="flex items-center justify-center space-x-1.5">
+            <i data-lucide="square" class="w-4 h-4"></i>
+            <span>독립기초 (T형/목)</span>
+          </div>
+          <p class="text-[10px] font-normal opacity-80 mt-0.5">단주 지주 + 1개 목</p>
+        </button>
+
+        <button type="button" data-type="combined" class="tab-btn px-3 py-2.5 rounded-xl text-xs font-bold border transition text-center bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100">
+          <div class="flex items-center justify-center space-x-1.5">
+            <i data-lucide="columns-2" class="w-4 h-4"></i>
+            <span>복합 통기초 (2주식)</span>
+          </div>
+          <p class="text-[10px] font-normal text-slate-400 mt-0.5">일체형 패드 + 2개 목</p>
+        </button>
+
+        <button type="button" data-type="single_block" class="tab-btn px-3 py-2.5 rounded-xl text-xs font-bold border transition text-center bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100">
+          <div class="flex items-center justify-center space-x-1.5">
+            <i data-lucide="box" class="w-4 h-4"></i>
+            <span>단일 블록 통기초</span>
+          </div>
+          <p class="text-[10px] font-normal text-slate-400 mt-0.5">단일 매스 콘크리트</p>
+        </button>
+
+        <button type="button" data-type="mat" class="tab-btn px-3 py-2.5 rounded-xl text-xs font-bold border transition text-center bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100">
+          <div class="flex items-center justify-center space-x-1.5">
+            <i data-lucide="grid" class="w-4 h-4"></i>
+            <span>매트기초 (Raft)</span>
+          </div>
+          <p class="text-[10px] font-normal text-slate-400 mt-0.5">옥탑/전면 슬래브</p>
+        </button>
+
+        <button type="button" data-type="strip" class="tab-btn px-3 py-2.5 rounded-xl text-xs font-bold border transition text-center bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100">
+          <div class="flex items-center justify-center space-x-1.5">
+            <i data-lucide="git-commit-horizontal" class="w-4 h-4"></i>
+            <span>줄기초 (Strip)</span>
+          </div>
+          <p class="text-[10px] font-normal text-slate-400 mt-0.5">펜스/리본보드 연속형</p>
+        </button>
+      </div>
+
+      <!-- Quick Environment Settings for Auto Presets -->
+      <div class="pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs bg-slate-50/80 p-2.5 rounded-xl">
+        <div class="flex items-center space-x-2">
+          <label class="text-slate-500 font-semibold whitespace-nowrap text-[11px] flex items-center">
+            <i data-lucide="mountain" class="w-3.5 h-3.5 mr-1 text-slate-600"></i> 현장 지반토질:
+          </label>
+          <select id="selSoilType" class="flex-grow bg-white border border-slate-300 rounded-lg px-2 py-1 font-medium text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option value="normal" selected>보통토사 (일반 대지)</option>
+            <option value="gravel">모래 및 자갈 섞인 흙</option>
+            <option value="weathered">풍화암 / 경질토</option>
+            <option value="rock">연암 / 경암 지반</option>
+          </select>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <label class="text-slate-500 font-semibold whitespace-nowrap text-[11px] flex items-center">
+            <i data-lucide="shovel" class="w-3.5 h-3.5 mr-1 text-slate-600"></i> 터파기 공법:
+          </label>
+          <select id="selExcavationMethod" class="flex-grow bg-white border border-slate-300 rounded-lg px-2 py-1 font-medium text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option value="vertical" selected>수직 굴착 (도심지/소형)</option>
+            <option value="slope">오픈컷 비탈면 굴착 (여유지반)</option>
+          </select>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <label class="text-slate-500 font-semibold whitespace-nowrap text-[11px] flex items-center">
+            <i data-lucide="shield-alert" class="w-3.5 h-3.5 mr-1 text-slate-600"></i> 배근 설계 등급:
+          </label>
+          <select id="selRebarGrade" class="flex-grow bg-white border border-slate-300 rounded-lg px-2 py-1 font-medium text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option value="std">표준 배근 (85 kg/m³)</option>
+            <option value="wind" selected>풍하중/모멘트 특화 (95~105 kg/m³)</option>
+            <option value="heavy">대형 지주 중배근 (115 kg/m³)</option>
+            <option value="plain">무근 콘크리트 (0 kg/m³)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+      <!-- Left Column: Input Form (5 cols) -->
+      <div class="lg:col-span-5 space-y-4">
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 no-print">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+            <h2 class="text-sm font-bold text-slate-800 flex items-center">
+              <i data-lucide="sliders" class="w-4 h-4 mr-2 text-blue-600"></i>
+              기초 제원 및 지능형 조건 설정
+            </h2>
+            <button id="btnResetAuto" title="자동 추천 표준값으로 복원" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg flex items-center font-medium transition">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1 text-amber-500"></i> 표준 자동값 재적용
+            </button>
+          </div>
+
+          <form id="calcForm" class="space-y-4">
+            
+            <!-- 1. Upper Pedestal / Neck Section -->
+            <div id="neckSectionBox" class="p-3.5 bg-blue-50/50 rounded-xl border border-blue-100 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-blue-900 flex items-center">
+                  <i data-lucide="arrow-up-from-line" class="w-3.5 h-3.5 mr-1.5 text-blue-600"></i>
+                  1. 상부 목 (주각부 / Pedestal)
+                </span>
+                <label class="flex items-center space-x-1.5 cursor-pointer text-xs font-medium text-slate-600">
+                  <input type="checkbox" id="chkHasNeck" checked class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5">
+                  <span>목 부재 적용</span>
+                </label>
+              </div>
+
+              <div id="neckInputs" class="space-y-2.5">
+                <div class="grid grid-cols-3 gap-2">
+                  <div>
+                    <label class="block text-[11px] text-slate-600 mb-1">목 가로 c_L (mm)</label>
+                    <input type="number" id="inNeckL" value="800" step="50" min="100" class="w-full text-right font-medium text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-[11px] text-slate-600 mb-1">목 세로 c_W (mm)</label>
+                    <input type="number" id="inNeckW" value="800" step="50" min="100" class="w-full text-right font-medium text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-[11px] text-slate-600 mb-1">전체 높이 c_H (mm)</label>
+                    <input type="number" id="inNeckH" value="1000" step="50" min="50" class="w-full text-right font-medium text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 pt-1 border-t border-blue-100/70">
+                  <div>
+                    <label class="block text-[11px] text-blue-900 font-semibold mb-1" title="GL(지표면) 위로 노출된 목의 높이">지상 노출고 (mm)</label>
+                    <input type="number" id="inNeckAboveGL" value="300" step="50" min="0" class="w-full text-right font-bold text-blue-700 text-xs px-2.5 py-1.5 bg-white border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                  </div>
+                  <div>
+                    <label class="block text-[11px] text-slate-600 mb-1">기초당 목 개수 (개)</label>
+                    <input type="number" id="inNeckCount" value="1" step="1" min="1" class="w-full text-right font-semibold text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Lower Footing / Pad Section -->
+            <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
+              <span class="text-xs font-bold text-slate-800 flex items-center">
+                <i data-lucide="box" class="w-3.5 h-3.5 mr-1.5 text-slate-700"></i>
+                2. 하부 푸팅 패드 (Footing Pad)
+              </span>
+
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="block text-[11px] text-slate-600 mb-1">푸팅 가로 L (mm)</label>
+                  <input type="number" id="inFootingL" value="2200" step="50" min="100" class="w-full text-right font-medium text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-slate-600 mb-1">푸팅 세로 W (mm)</label>
+                  <input type="number" id="inFootingW" value="2200" step="50" min="100" class="w-full text-right font-medium text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div>
+                  <label class="block text-[11px] text-slate-600 mb-1">푸팅 두께 Hf (mm)</label>
+                  <input type="number" id="inFootingH" value="1000" step="50" min="100" class="w-full text-right font-medium text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+              </div>
+
+              <div class="pt-1">
+                <label class="block text-[11px] text-slate-600 mb-1">기초 개소 수 (N)</label>
+                <div class="flex items-center space-x-2">
+                  <input type="number" id="inQtyN" value="1" min="1" step="1" class="w-full text-right font-semibold text-xs px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                  <span class="text-xs text-slate-500 font-medium">개소</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Subbase & Lean Concrete (★ Smart Auto + Manual Edit) -->
+            <div class="p-3.5 bg-emerald-50/70 rounded-xl border border-emerald-200/80 space-y-2.5 relative">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-emerald-950 flex items-center">
+                  <i data-lucide="layers" class="w-3.5 h-3.5 mr-1.5 text-emerald-700"></i>
+                  3. 버림 콘크리트 및 잡석 지정
+                </span>
+                <span id="badgeSec3" class="badge-auto text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center">
+                  <i data-lucide="check" class="w-3 h-3 mr-0.5"></i> 자동 연동중
+                </span>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2">
+                <!-- Ow -->
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="text-[11px] text-slate-700 font-medium">여유폭 Ow</label>
+                    <span id="tagOw" class="text-[9px] text-emerald-700 font-mono">AUTO</span>
+                  </div>
+                  <div class="relative">
+                    <input type="number" id="inDimOw" value="100" step="10" min="0" class="w-full text-right font-mono font-medium text-xs px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                  </div>
+                </div>
+
+                <!-- tb -->
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="text-[11px] text-slate-700 font-medium">버림두께 tb</label>
+                    <span id="tagTb" class="text-[9px] text-emerald-700 font-mono">AUTO</span>
+                  </div>
+                  <div class="relative">
+                    <input type="number" id="inDimTb" value="100" step="10" min="0" class="w-full text-right font-mono font-medium text-xs px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                  </div>
+                </div>
+
+                <!-- tr -->
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="text-[11px] text-slate-700 font-medium">잡석두께 tr</label>
+                    <span id="tagTr" class="text-[9px] text-emerald-700 font-mono">AUTO</span>
+                  </div>
+                  <div class="relative">
+                    <input type="number" id="inDimTr" value="200" step="10" min="0" class="w-full text-right font-mono font-medium text-xs px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                  </div>
+                </div>
+              </div>
+              <p class="text-[10px] text-emerald-800 leading-tight">
+                * 단위: mm (지반 조건에 따라 버림 50~100mm, 잡석 150~200mm 자동 권장되며 직접 수정 가능)
+              </p>
+            </div>
+
+            <!-- 4. Earthwork & Rebar Factors (★ Smart Auto + Manual Edit) -->
+            <div class="p-3.5 bg-amber-50/70 rounded-xl border border-amber-200/80 space-y-2.5 relative">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-amber-950 flex items-center">
+                  <i data-lucide="axe" class="w-3.5 h-3.5 mr-1.5 text-amber-700"></i>
+                  4. 토공 및 배근 할증 조건
+                </span>
+                <span id="badgeSec4" class="badge-auto text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center">
+                  <i data-lucide="check" class="w-3 h-3 mr-0.5"></i> 자동 연동중
+                </span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2.5">
+                <!-- S -->
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="text-[11px] text-slate-700 font-medium">작업여유 S (mm)</label>
+                    <span id="tagS" class="text-[9px] text-amber-700 font-mono">AUTO</span>
+                  </div>
+                  <input type="number" id="inDimS" value="300" step="50" min="0" class="w-full text-right font-mono font-medium text-xs px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+
+                <!-- Slope -->
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="text-[11px] text-slate-700 font-medium">굴착물매 (1:m)</label>
+                    <span id="tagSlope" class="text-[9px] text-amber-700 font-mono">AUTO</span>
+                  </div>
+                  <input type="number" id="inParamSlope" value="0.0" step="0.1" min="0" max="1.5" class="w-full text-right font-mono font-medium text-xs px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+
+                <!-- Rebar Ratio -->
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="text-[11px] text-slate-700 font-medium">철근비 (kg/m³)</label>
+                    <span id="tagRebar" class="text-[9px] text-amber-700 font-mono">AUTO</span>
+                  </div>
+                  <input type="number" id="inParamRebarRatio" value="95" step="5" min="0" class="w-full text-right font-mono font-medium text-xs px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+
+                <!-- Soil L Factor -->
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="text-[11px] text-slate-700 font-medium">토량환산계수 (L)</label>
+                    <span id="tagSoilL" class="text-[9px] text-amber-700 font-mono">AUTO</span>
+                  </div>
+                  <input type="number" id="inParamSoilL" value="1.20" step="0.05" min="1.0" class="w-full text-right font-mono font-medium text-xs px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+              </div>
+              <p class="text-[10px] text-amber-800 leading-tight">
+                * 건설공사 표준품셈 비탈면 경사 및 토질계수 기준. 값을 클릭해 타이핑하면 즉시 수동 값으로 반영됩니다.
+              </p>
+            </div>
+
+          </form>
+        </div>
+
+        <!-- 2D Section Canvas Diagram Card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
+          <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
+            <h3 class="text-xs font-bold text-slate-700 flex items-center">
+              <i data-lucide="eye" class="w-3.5 h-3.5 mr-1.5 text-blue-600"></i>
+              기초 종단면도 (Cross Section View)
+            </h3>
+            <span class="text-[10px] text-slate-400">지표면(GL) 및 주각부 연동</span>
+          </div>
+          
+          <div class="w-full bg-slate-900 rounded-xl p-2 flex items-center justify-center overflow-hidden border border-slate-800">
+            <canvas id="sectionCanvas" width="440" height="280" class="max-w-full h-auto"></canvas>
+          </div>
+
+          <!-- Diagram Legend -->
+          <div class="grid grid-cols-4 gap-1.5 mt-2.5 text-[11px] text-slate-600 text-center">
+            <div class="flex items-center justify-center space-x-1">
+              <span class="w-2.5 h-2.5 rounded-sm bg-blue-500 inline-block"></span>
+              <span>목/주각부</span>
+            </div>
+            <div class="flex items-center justify-center space-x-1">
+              <span class="w-2.5 h-2.5 rounded-sm bg-blue-700 inline-block"></span>
+              <span>푸팅패드</span>
+            </div>
+            <div class="flex items-center justify-center space-x-1">
+              <span class="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span>
+              <span>버림/잡석</span>
+            </div>
+            <div class="flex items-center justify-center space-x-1">
+              <span class="w-2.5 h-2.5 rounded-sm border border-dashed border-red-400 inline-block"></span>
+              <span>터파기선</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: KPI Cards & Detailed BOQ Table (7 cols) -->
+      <div class="lg:col-span-7 space-y-4">
+
+        <!-- Top KPI Metric Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <!-- Concrete Card -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between text-slate-500 mb-1">
+              <span class="text-xs font-semibold">총 구조 콘크리트</span>
+              <span class="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><i data-lucide="box" class="w-4 h-4"></i></span>
+            </div>
+            <div class="flex items-baseline space-x-1">
+              <span id="kpiConc" class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">0.00</span>
+              <span class="text-xs font-semibold text-slate-500">m³</span>
+            </div>
+            <div class="text-[11px] text-blue-600 mt-1 font-medium" id="kpiConcSub">푸팅 0.00 + 목 0.00</div>
+          </div>
+
+          <!-- Formwork Card -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between text-slate-500 mb-1">
+              <span class="text-xs font-semibold">총 거푸집 면적</span>
+              <span class="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg"><i data-lucide="layout" class="w-4 h-4"></i></span>
+            </div>
+            <div class="flex items-baseline space-x-1">
+              <span id="kpiForm" class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">0.00</span>
+              <span class="text-xs font-semibold text-slate-500">m²</span>
+            </div>
+            <div class="text-[11px] text-emerald-600 mt-1 font-medium" id="kpiFormSub">푸팅 0.00 + 목 0.00</div>
+          </div>
+
+          <!-- Excavation Card -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between text-slate-500 mb-1">
+              <span class="text-xs font-semibold">터파기 (GL이하)</span>
+              <span class="p-1.5 bg-amber-50 text-amber-600 rounded-lg"><i data-lucide="shovel" class="w-4 h-4"></i></span>
+            </div>
+            <div class="flex items-baseline space-x-1">
+              <span id="kpiExcv" class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">0.00</span>
+              <span class="text-xs font-semibold text-slate-500">m³</span>
+            </div>
+            <div class="text-[11px] text-slate-500 mt-1 font-medium" id="kpiExcvDepth">굴착심도: 0.00 m</div>
+          </div>
+
+          <!-- Rebar Card -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between text-slate-500 mb-1">
+              <span class="text-xs font-semibold">철근 가공조립</span>
+              <span class="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg"><i data-lucide="hash" class="w-4 h-4"></i></span>
+            </div>
+            <div class="flex items-baseline space-x-1">
+              <span id="kpiRebar" class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">0.000</span>
+              <span class="text-xs font-semibold text-slate-500">ton</span>
+            </div>
+            <div class="text-[11px] text-indigo-600 mt-1 font-medium" id="kpiRebarKg">0 kg (3% 할증포함)</div>
+          </div>
+        </div>
+
+        <!-- Detailed Bill of Quantities (BOQ) Statement Table -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden print-shadow-none">
+          <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70">
+            <div>
+              <h2 class="text-base font-bold text-slate-900 flex items-center">
+                <i data-lucide="file-spreadsheet" class="w-5 h-5 mr-2 text-blue-600"></i>
+                공종별 세부 물량내역 및 산출근거서
+              </h2>
+              <p class="text-xs text-slate-500 mt-0.5">상부 주각부(목) 및 하부 푸팅이 개별 분리된 표준 산출서</p>
+            </div>
+            <div class="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full font-semibold" id="tableBadgeTitle">
+              독립기초 (T형 목포함)
+            </div>
+          </div>
+
+          <!-- Scrollable Table -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs sm:text-sm">
+              <thead>
+                <tr class="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-bold text-xs uppercase tracking-wider">
+                  <th class="py-3 px-3 text-center w-12">No</th>
+                  <th class="py-3 px-4 min-w-[140px]">공종명 (품명)</th>
+                  <th class="py-3 px-3 min-w-[120px]">규격</th>
+                  <th class="py-3 px-3 text-center w-16">단위</th>
+                  <th class="py-3 px-4 text-right min-w-[90px]">수량</th>
+                  <th class="py-3 px-4 min-w-[280px]">산출 근거 및 상세 산식</th>
+                </tr>
+              </thead>
+              <tbody id="statementTableBody" class="divide-y divide-slate-100 font-normal">
+                <!-- Dynamically populated via JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Engineering Notes & Structural Guidance -->
+          <div class="p-4 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-600 space-y-1.5 leading-relaxed">
+            <p><span class="font-bold text-blue-700">■ 목(주각부) 거푸집 산출:</span> 목 부재는 외주 4면을 설치 면적으로 산정하며, 하부 푸팅과 만나는 바닥면 및 상부 베이스플레이트 지지면은 거푸집 공제 대상입니다.</p>
+            <p><span class="font-bold text-emerald-700">■ 지능형 추천 파라미터:</span> 여유폭($O_w$), 버림두께($t_b$), 잡석두께($t_r$), 작업여유($S$), 물매, 철근비는 입력된 토질 및 공법에 따라 자동 조정되며, 직접 수정 시 즉시 사용자 설정값으로 전환됩니다.</p>
+            <p><span class="font-bold text-slate-700">■ 엑셀 복사/출력:</span> [엑셀 복사] 버튼을 누르면 컬럼 탭 구분이 적용되어 엑셀 워크시트에 바로 붙여넣기(Ctrl+V)할 수 있습니다.</p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="mt-auto bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-4 no-print">
+    <div class="max-w-7xl mx-auto px-4 text-center">
+      <span>전광판 구조물 기초 설계 및 적산 엔진 &bull; 한국 도로교통 및 전광판 구조설계 기준 연동</span>
+    </div>
+  </footer>
+
+  <script>
+    // Foundation Types Config
+    const TYPE_PRESETS = {
+      single_pedestal: {
+        title: "독립기초 (T형/목)",
+        desc: "단주식 지주 전광판 표준 (상부 주각부 목 + 하부 넓은 푸팅 패드)",
+        hasNeck: true,
+        neckL: 800, neckW: 800, neckH: 1000, neckAboveGL: 300, neckCount: 1,
+        footingL: 2200, footingW: 2200, footingH: 1000, qtyN: 1
+      },
+      combined: {
+        title: "복합 통기초 (2주식)",
+        desc: "2주식 대형 전광판 또는 문형식 지주 (1개 대형 패드 위에 2개 목 배치)",
+        hasNeck: true,
+        neckL: 800, neckW: 800, neckH: 1000, neckAboveGL: 300, neckCount: 2,
+        footingL: 6500, footingW: 2200, footingH: 1200, qtyN: 1
+      },
+      single_block: {
+        title: "단일 블록 통기초",
+        desc: "주각부 단턱이 없는 단일 직방체 매스 콘크리트 기초",
+        hasNeck: false,
+        neckL: 0, neckW: 0, neckH: 0, neckAboveGL: 0, neckCount: 0,
+        footingL: 2000, footingW: 2000, footingH: 1800, qtyN: 1
+      },
+      mat: {
+        title: "매트기초 (Raft)",
+        desc: "건물 옥탑 또는 저지지반 전면 슬래브형 기초",
+        hasNeck: false,
+        neckL: 0, neckW: 0, neckH: 0, neckAboveGL: 0, neckCount: 0,
+        footingL: 8000, footingW: 4000, footingH: 600, qtyN: 1
+      },
+      strip: {
+        title: "줄기초 (Strip)",
+        desc: "장폭형 펜스 디스플레이 또는 리본보드 선형 연속기초",
+        hasNeck: true,
+        neckL: 400, neckW: 10000, neckH: 600, neckAboveGL: 200, neckCount: 1,
+        footingL: 1000, footingW: 10000, footingH: 400, qtyN: 1
+      }
+    };
+
+    // Application State
+    const state = {
+      type: 'single_pedestal',
+      soilType: 'normal',       // normal, gravel, weathered, rock
+      excvMethod: 'vertical',   // vertical, slope
+      rebarGrade: 'wind',       // std, wind, heavy, plain
+      
+      // Tracking Manual Overrides for Section 3 & 4
+      isManual: {
+        dimOw: false,
+        dimTb: false,
+        dimTr: false,
+        dimS: false,
+        slope: false,
+        rebarRatio: false,
+        soilL: false
+      },
+
+      hasNeck: true,
+      neckL: 800,
+      neckW: 800,
+      neckH: 1000,
+      neckAboveGL: 300,
+      neckCount: 1,
+      
+      footingL: 2200,
+      footingW: 2200,
+      footingH: 1000,
+      qtyN: 1,
+
+      // Section 3 & 4 actual values
+      dimOw: 100,
+      dimTb: 100,
+      dimTr: 200,
+      dimS: 300,
+      slope: 0.0,
+      rebarRatio: 95,
+      soilL: 1.20,
+
+      rebarExtra: 3.0,
+      concExtra: 1.0
+    };
+
+    // DOM Elements Mapping
+    const elements = {
+      typeTabGroup: document.getElementById('typeTabGroup'),
+      currentTypeDesc: document.getElementById('currentTypeDesc'),
+      
+      selSoilType: document.getElementById('selSoilType'),
+      selExcavationMethod: document.getElementById('selExcavationMethod'),
+      selRebarGrade: document.getElementById('selRebarGrade'),
+      btnResetAuto: document.getElementById('btnResetAuto'),
+      
+      neckSectionBox: document.getElementById('neckSectionBox'),
+      neckInputs: document.getElementById('neckInputs'),
+      chkHasNeck: document.getElementById('chkHasNeck'),
+      inNeckL: document.getElementById('inNeckL'),
+      inNeckW: document.getElementById('inNeckW'),
+      inNeckH: document.getElementById('inNeckH'),
+      inNeckAboveGL: document.getElementById('inNeckAboveGL'),
+      inNeckCount: document.getElementById('inNeckCount'),
+      
+      inFootingL: document.getElementById('inFootingL'),
+      inFootingW: document.getElementById('inFootingW'),
+      inFootingH: document.getElementById('inFootingH'),
+      inQtyN: document.getElementById('inQtyN'),
+      
+      // Smart Section 3 Elements & Badges
+      badgeSec3: document.getElementById('badgeSec3'),
+      inDimOw: document.getElementById('inDimOw'),
+      tagOw: document.getElementById('tagOw'),
+      inDimTb: document.getElementById('inDimTb'),
+      tagTb: document.getElementById('tagTb'),
+      inDimTr: document.getElementById('inDimTr'),
+      tagTr: document.getElementById('tagTr'),
+
+      // Smart Section 4 Elements & Badges
+      badgeSec4: document.getElementById('badgeSec4'),
+      inDimS: document.getElementById('inDimS'),
+      tagS: document.getElementById('tagS'),
+      inParamSlope: document.getElementById('inParamSlope'),
+      tagSlope: document.getElementById('tagSlope'),
+      inParamRebarRatio: document.getElementById('inParamRebarRatio'),
+      tagRebar: document.getElementById('tagRebar'),
+      inParamSoilL: document.getElementById('inParamSoilL'),
+      tagSoilL: document.getElementById('tagSoilL'),
+
+      kpiConc: document.getElementById('kpiConc'),
+      kpiConcSub: document.getElementById('kpiConcSub'),
+      kpiForm: document.getElementById('kpiForm'),
+      kpiFormSub: document.getElementById('kpiFormSub'),
+      kpiExcv: document.getElementById('kpiExcv'),
+      kpiExcvDepth: document.getElementById('kpiExcvDepth'),
+      kpiRebar: document.getElementById('kpiRebar'),
+      kpiRebarKg: document.getElementById('kpiRebarKg'),
+      tableBadgeTitle: document.getElementById('tableBadgeTitle'),
+      
+      tableBody: document.getElementById('statementTableBody'),
+      canvas: document.getElementById('sectionCanvas'),
+      toast: document.getElementById('toast'),
+      toastMsg: document.getElementById('toastMsg'),
+      
+      btnCopyTsv: document.getElementById('btnCopyTsv'),
+      btnDownloadCsv: document.getElementById('btnDownloadCsv'),
+      btnPrint: document.getElementById('btnPrint')
+    };
+
+    // Smart Rules Engine based on Civil Engineering Specs
+    function calculateSmartStandards() {
+      const footingArea = (state.footingL / 1000) * (state.footingW / 1000);
+      const isMassive = footingArea >= 12 || state.footingH >= 1500;
+      const isMat = state.type === 'mat';
+
+      // 1. Lean concrete & Crushed Stone
+      let recOw = 100;
+      let recTb = 100;
+      let recTr = 200;
+
+      if (state.soilType === 'rock') {
+        recOw = 50;
+        recTb = 50;
+        recTr = 100; // Hard rock requires minimal leveling stone
+      } else if (state.soilType === 'weathered') {
+        recOw = 100;
+        recTb = 80;
+        recTr = 150;
+      } else if (state.soilType === 'gravel') {
+        recOw = 100;
+        recTb = 100;
+        recTr = 150;
+      } else { // normal
+        recOw = isMat ? 150 : 100;
+        recTb = 100;
+        recTr = isMassive ? 200 : 200;
+      }
+
+      // 2. Earthwork working space S & Slope
+      let recS = 300;
+      let recSlope = 0.0;
+      let recSoilL = 1.20;
+
+      if (state.soilType === 'rock') {
+        recSoilL = 1.30;
+        recSlope = (state.excvMethod === 'slope') ? 0.3 : 0.0;
+        recS = 300;
+      } else if (state.soilType === 'weathered') {
+        recSoilL = 1.25;
+        recSlope = (state.excvMethod === 'slope') ? 0.5 : 0.0;
+        recS = 350;
+      } else if (state.soilType === 'gravel') {
+        recSoilL = 1.15;
+        recSlope = (state.excvMethod === 'slope') ? 0.8 : 0.0;
+        recS = 400;
+      } else { // normal
+        recSoilL = 1.20;
+        recSlope = (state.excvMethod === 'slope') ? 0.5 : 0.0;
+        recS = (isMassive || state.excvMethod === 'slope') ? 400 : 300;
+      }
+
+      // 3. Rebar ratio
+      let recRebar = 95;
+      if (state.rebarGrade === 'plain') {
+        recRebar = 0;
+      } else if (state.rebarGrade === 'std') {
+        recRebar = isMat ? 80 : 85;
+      } else if (state.rebarGrade === 'wind') {
+        recRebar = (state.type === 'combined' || isMassive) ? 105 : 95;
+      } else if (state.rebarGrade === 'heavy') {
+        recRebar = 115;
+      }
+
+      return {
+        recOw, recTb, recTr,
+        recS, recSlope, recSoilL, recRebar
+      };
+    }
+
+    // Apply auto standards only to non-overridden fields
+    function syncSmartFields() {
+      const rec = calculateSmartStandards();
+
+      // Section 3
+      if (!state.isManual.dimOw) state.dimOw = rec.recOw;
+      if (!state.isManual.dimTb) state.dimTb = rec.recTb;
+      if (!state.isManual.dimTr) state.dimTr = rec.recTr;
+
+      // Section 4
+      if (!state.isManual.dimS) state.dimS = rec.recS;
+      if (!state.isManual.slope) state.slope = rec.recSlope;
+      if (!state.isManual.soilL) state.soilL = rec.recSoilL;
+      if (!state.isManual.rebarRatio) state.rebarRatio = rec.recRebar;
+
+      // Reflect into input values
+      elements.inDimOw.value = state.dimOw;
+      elements.inDimTb.value = state.dimTb;
+      elements.inDimTr.value = state.dimTr;
+
+      elements.inDimS.value = state.dimS;
+      elements.inParamSlope.value = state.slope;
+      elements.inParamSoilL.value = state.soilL;
+      elements.inParamRebarRatio.value = state.rebarRatio;
+
+      updateStatusBadges();
+    }
+
+    // Update AUTO vs MANUAL badges UI
+    function updateStatusBadges() {
+      const sec3Manual = state.isManual.dimOw || state.isManual.dimTb || state.isManual.dimTr;
+      const sec4Manual = state.isManual.dimS || state.isManual.slope || state.isManual.soilL || state.isManual.rebarRatio;
+
+      // Section 3 Master Badge
+      if (sec3Manual) {
+        elements.badgeSec3.className = "badge-manual text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center";
+        elements.badgeSec3.innerHTML = `<i data-lucide="edit-3" class="w-3 h-3 mr-0.5"></i> 수동 수정됨`;
+      } else {
+        elements.badgeSec3.className = "badge-auto text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center";
+        elements.badgeSec3.innerHTML = `<i data-lucide="check" class="w-3 h-3 mr-0.5"></i> 자동 연동중`;
+      }
+
+      // Section 4 Master Badge
+      if (sec4Manual) {
+        elements.badgeSec4.className = "badge-manual text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center";
+        elements.badgeSec4.innerHTML = `<i data-lucide="edit-3" class="w-3 h-3 mr-0.5"></i> 수동 수정됨`;
+      } else {
+        elements.badgeSec4.className = "badge-auto text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center";
+        elements.badgeSec4.innerHTML = `<i data-lucide="check" class="w-3 h-3 mr-0.5"></i> 자동 연동중`;
+      }
+
+      // Individual Field Tags
+      setTagStatus(elements.tagOw, state.isManual.dimOw);
+      setTagStatus(elements.tagTb, state.isManual.dimTb);
+      setTagStatus(elements.tagTr, state.isManual.dimTr);
+      setTagStatus(elements.tagS, state.isManual.dimS);
+      setTagStatus(elements.tagSlope, state.isManual.slope);
+      setTagStatus(elements.tagSoilL, state.isManual.soilL);
+      setTagStatus(elements.tagRebar, state.isManual.rebarRatio);
+
+      lucide.createIcons();
+    }
+
+    function setTagStatus(tagEl, isManual) {
+      if (isManual) {
+        tagEl.textContent = '수동';
+        tagEl.className = 'text-[9px] text-amber-700 font-bold';
+      } else {
+        tagEl.textContent = 'AUTO';
+        tagEl.className = 'text-[9px] text-emerald-700 font-mono font-medium';
+      }
+    }
+
+    // Reset All Overrides to AUTO
+    function resetAllToAuto() {
+      Object.keys(state.isManual).forEach(k => {
+        state.isManual[k] = false;
+      });
+      syncSmartFields();
+      updateDashboard();
+      showToast('표준 설계 기준값으로 자동 복원되었습니다.');
+    }
+
+    // Full Quantities Calculation
+    function performCalculations() {
+      const f_L = state.footingL / 1000;
+      const f_W = state.footingW / 1000;
+      const f_H = state.footingH / 1000;
+      
+      const n_L = state.hasNeck ? (state.neckL / 1000) : 0;
+      const n_W = state.hasNeck ? (state.neckW / 1000) : 0;
+      const n_H = state.hasNeck ? (state.neckH / 1000) : 0;
+      const n_above = state.hasNeck ? (state.neckAboveGL / 1000) : 0;
+      const n_cnt = state.hasNeck ? state.neckCount : 0;
+      
+      const Ow = state.dimOw / 1000;
+      const tb = state.dimTb / 1000;
+      const tr = state.dimTr / 1000;
+      const S = state.dimS / 1000;
+      const N = state.qtyN;
+      const slope = state.slope;
+
+      // 1. Concrete Quantities
+      const v_footing_single = f_L * f_W * f_H;
+      const v_footing_total = v_footing_single * N;
+
+      const v_neck_single = state.hasNeck ? (n_L * n_W * n_H * n_cnt) : 0;
+      const v_neck_total = v_neck_single * N;
+
+      const v_conc_net = v_footing_total + v_neck_total;
+      const v_conc_gross = v_conc_net * (1 + state.concExtra / 100);
+
+      // 2. Formwork Quantities
+      const a_form_footing_single = 2 * (f_L + f_W) * f_H;
+      const a_form_footing_total = a_form_footing_single * N;
+
+      const a_form_neck_single = state.hasNeck ? (2 * (n_L + n_W) * n_H * n_cnt) : 0;
+      const a_form_neck_total = a_form_neck_single * N;
+
+      const a_form_total = a_form_footing_total + a_form_neck_total;
+
+      // 3. Subbase (Crushed Stone) & Lean Concrete
+      const sub_L = f_L + 2 * Ow;
+      const sub_W = f_W + 2 * Ow;
+      const a_sub_single = sub_L * sub_W;
+      const a_sub_total = a_sub_single * N;
+
+      const v_lean_total = a_sub_total * tb;
+      const v_stone_total = a_sub_total * tr;
+
+      // 4. Excavation Depth (from GL to stone bottom)
+      const neck_below_GL = state.hasNeck ? Math.max(0, n_H - n_above) : 0;
+      const H_excv = neck_below_GL + f_H + tb + tr;
+
+      const excv_bot_L = sub_L + 2 * S;
+      const excv_bot_W = sub_W + 2 * S;
+      const A_bot = excv_bot_L * excv_bot_W;
+
+      let v_excv_single = 0;
+      let excv_formula_note = "";
+
+      if (slope <= 0) {
+        v_excv_single = A_bot * H_excv;
+        excv_formula_note = `${excv_bot_L.toFixed(2)} × ${excv_bot_W.toFixed(2)} × ${H_excv.toFixed(2)}m (수직굴착)`;
+      } else {
+        const excv_top_L = excv_bot_L + 2 * (slope * H_excv);
+        const excv_top_W = excv_bot_W + 2 * (slope * H_excv);
+        const A_top = excv_top_L * excv_top_W;
+        const A_mid = ((excv_bot_L + excv_top_L) / 2) * ((excv_bot_W + excv_top_W) / 2);
+        v_excv_single = (H_excv / 6) * (A_bot + A_top + 4 * A_mid);
+        excv_formula_note = `각추대공식 H/6(A1+A2+4Am) [H=${H_excv.toFixed(2)}m, 물매 1:${slope.toFixed(1)}]`;
+      }
+      const v_excv_total = v_excv_single * N;
+
+      // 5. Reinforcement Rebar
+      const rebar_kg_net = v_conc_net * state.rebarRatio;
+      const rebar_kg_gross = rebar_kg_net * (1 + state.rebarExtra / 100);
+      const rebar_ton_gross = rebar_kg_gross / 1000;
+
+      // 6. Backfill & Surplus Soil
+      const v_neck_buried_total = state.hasNeck ? (n_L * n_W * neck_below_GL * n_cnt * N) : 0;
+      const v_buried_structures = v_footing_total + v_neck_buried_total + v_lean_total + v_stone_total;
+      const v_backfill = Math.max(0, v_excv_total - v_buried_structures);
+      const v_surplus_soil = v_buried_structures * state.soilL;
+
+      return {
+        f_L, f_W, f_H, n_L, n_W, n_H, n_above, neck_below_GL, n_cnt,
+        sub_L, sub_W, a_sub_total,
+        v_footing_single, v_footing_total,
+        v_neck_single, v_neck_total,
+        v_conc_net, v_conc_gross,
+        a_form_footing_total, a_form_neck_total, a_form_total,
+        v_lean_total, v_stone_total,
+        H_excv, excv_bot_L, excv_bot_W, v_excv_total, excv_formula_note,
+        rebar_kg_gross, rebar_ton_gross,
+        v_backfill, v_surplus_soil,
+        N
+      };
+    }
+
+    function generateBOQ(calc) {
+      const rows = [];
+      let no = 1;
+
+      // 1. Excavation
+      rows.push({
+        no: no++,
+        name: "터파기 (지중 굴착)",
+        spec: state.slope > 0 ? `기계굴착 (1:${state.slope} 비탈)` : "기계/인력 굴착 (수직)",
+        unit: "m³",
+        qty: calc.v_excv_total.toFixed(2),
+        formula: `${calc.excv_formula_note} × ${calc.N}개소 [GL기준 굴착심도 ${calc.H_excv.toFixed(2)}m]`
+      });
+
+      // 2. Crushed Stone Subbase Area
+      rows.push({
+        no: no++,
+        name: "잡석포설 및 다짐",
+        spec: `T=${state.dimTr}mm 쇄석골재`,
+        unit: "m²",
+        qty: calc.a_sub_total.toFixed(2),
+        formula: `(${calc.f_L.toFixed(2)}+${(state.dimOw*2/1000).toFixed(2)}) × (${calc.f_W.toFixed(2)}+${(state.dimOw*2/1000).toFixed(2)}) × ${calc.N}개소`
+      });
+
+      // 3. Crushed Stone Material
+      rows.push({
+        no: no++,
+        name: "잡석 (골재자재)",
+        spec: "부순돌 (혼합골재)",
+        unit: "m³",
+        qty: calc.v_stone_total.toFixed(2),
+        formula: `${calc.a_sub_total.toFixed(2)}m² × ${(state.dimTr/1000).toFixed(2)}m (포설두께)`
+      });
+
+      // 4. Lean Concrete
+      rows.push({
+        no: no++,
+        name: "버림 콘크리트",
+        spec: `25-18-120 (T=${state.dimTb}mm)`,
+        unit: "m³",
+        qty: calc.v_lean_total.toFixed(2),
+        formula: `${calc.a_sub_total.toFixed(2)}m² × ${(state.dimTb/1000).toFixed(2)}m (타설두께)`
+      });
+
+      // 5. Structure Concrete (Footing)
+      rows.push({
+        no: no++,
+        name: "구조 콘크리트 (하부 푸팅)",
+        spec: "25-24-150 / 25-27-150",
+        unit: "m³",
+        qty: calc.v_footing_total.toFixed(2),
+        formula: `${calc.f_L.toFixed(2)} × ${calc.f_W.toFixed(2)} × ${calc.f_H.toFixed(2)} × ${calc.N}개소`
+      });
+
+      // 6. Structure Concrete (Neck / Pedestal)
+      if (state.hasNeck && calc.n_cnt > 0) {
+        rows.push({
+          no: no++,
+          name: "구조 콘크리트 (상부 주각부/목)",
+          spec: "25-24-150 (일체/후타설)",
+          unit: "m³",
+          qty: calc.v_neck_total.toFixed(2),
+          formula: `(${calc.n_L.toFixed(2)} × ${calc.n_W.toFixed(2)} × ${calc.n_H.toFixed(2)}) × ${calc.n_cnt}개/소 × ${calc.N}개소`
+        });
+      }
+
+      // 7. Formwork (Footing)
+      rows.push({
+        no: no++,
+        name: "거푸집 (하부 푸팅 둘레)",
+        spec: "유로폼 / 합판 4회",
+        unit: "m²",
+        qty: calc.a_form_footing_total.toFixed(2),
+        formula: `2 × (${calc.f_L.toFixed(2)} + ${calc.f_W.toFixed(2)}) × ${calc.f_H.toFixed(2)} × ${calc.N}개소 (외주 4면)`
+      });
+
+      // 8. Formwork (Neck)
+      if (state.hasNeck && calc.n_cnt > 0) {
+        rows.push({
+          no: no++,
+          name: "거푸집 (상부 목/주각부)",
+          spec: "합판 거푸집 / 특수폼",
+          unit: "m²",
+          qty: calc.a_form_neck_total.toFixed(2),
+          formula: `2 × (${calc.n_L.toFixed(2)} + ${calc.n_W.toFixed(2)}) × ${calc.n_H.toFixed(2)} × ${calc.n_cnt}개/소 × ${calc.N}개소 (상/하면 제외)`
+        });
+      }
+
+      // 9. Rebar
+      if (state.rebarRatio > 0) {
+        rows.push({
+          no: no++,
+          name: "철근 가공 및 조립",
+          spec: "SD400 이형철근 (HD13~HD22)",
+          unit: "ton",
+          qty: calc.rebar_ton_gross.toFixed(3),
+          formula: `총콘크리트(${calc.v_conc_net.toFixed(2)}m³) × ${state.rebarRatio}kg/m³ × (1 + ${state.rebarExtra}%) ÷ 1000`
+        });
+      }
+
+      // 10. Backfill
+      rows.push({
+        no: no++,
+        name: "되메우기 및 다짐",
+        spec: "현장 토사 유용 (층다짐)",
+        unit: "m³",
+        qty: calc.v_backfill.toFixed(2),
+        formula: `총터파기(${calc.v_excv_total.toFixed(2)}) - 지중매설체적(${(calc.v_excv_total - calc.v_backfill).toFixed(2)}m³)`
+      });
+
+      // 11. Surplus Soil
+      rows.push({
+        no: no++,
+        name: "사토 (잔토반출)",
+        spec: `체적환산계수 L=${state.soilL}`,
+        unit: "m³",
+        qty: calc.v_surplus_soil.toFixed(2),
+        formula: `지중구조물 체적(${(calc.v_excv_total - calc.v_backfill).toFixed(2)}m³) × ${state.soilL} (흐트러진 상태)`
+      });
+
+      return rows;
+    }
+
+    // Refresh Dashboard Screen
+    function updateDashboard() {
+      const calc = performCalculations();
+      const boq = generateBOQ(calc);
+
+      // KPI Update
+      elements.kpiConc.textContent = calc.v_conc_gross.toFixed(2);
+      elements.kpiConcSub.textContent = state.hasNeck 
+        ? `푸팅 ${calc.v_footing_total.toFixed(2)} + 목 ${calc.v_neck_total.toFixed(2)} m³`
+        : `단일 매스 ${calc.v_footing_total.toFixed(2)} m³`;
+
+      elements.kpiForm.textContent = calc.a_form_total.toFixed(2);
+      elements.kpiFormSub.textContent = state.hasNeck
+        ? `푸팅 ${calc.a_form_footing_total.toFixed(1)} + 목 ${calc.a_form_neck_total.toFixed(1)} m²`
+        : `외주 ${calc.a_form_footing_total.toFixed(1)} m²`;
+
+      elements.kpiExcv.textContent = calc.v_excv_total.toFixed(2);
+      elements.kpiExcvDepth.textContent = `굴착심도: ${calc.H_excv.toFixed(2)} m (GL 이하)`;
+
+      elements.kpiRebar.textContent = calc.rebar_ton_gross.toFixed(3);
+      elements.kpiRebarKg.textContent = `${Math.round(calc.rebar_kg_gross).toLocaleString()} kg (할증 3% 포함)`;
+
+      // Table Header Badge
+      const currentPreset = TYPE_PRESETS[state.type];
+      elements.tableBadgeTitle.textContent = `${currentPreset.title} (기초 ${calc.N}개소)`;
+
+      // Table Rows
+      elements.tableBody.innerHTML = boq.map(r => `
+        <tr class="hover:bg-blue-50/40 transition">
+          <td class="py-2.5 px-3 text-center text-slate-400 font-medium">${r.no}</td>
+          <td class="py-2.5 px-4 font-bold text-slate-800">${r.name}</td>
+          <td class="py-2.5 px-3 text-slate-600 font-mono text-xs">${r.spec}</td>
+          <td class="py-2.5 px-3 text-center text-slate-500 font-semibold">${r.unit}</td>
+          <td class="py-2.5 px-4 text-right font-bold text-blue-700 font-mono text-sm">${r.qty}</td>
+          <td class="py-2.5 px-4 text-slate-600 text-xs font-mono break-all">${r.formula}</td>
+        </tr>
+      `).join('');
+
+      drawCrossSection(calc);
+    }
+
+    // Cross Section Canvas Renderer
+    function drawCrossSection(calc) {
+      const canvas = elements.canvas;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      const totalWidthM = Math.max(calc.excv_bot_L + 2 * (calc.H_excv * state.slope), calc.f_L + 0.8, 2.5);
+      const totalHeightM = (state.hasNeck ? (calc.n_above + calc.neck_below_GL) : 0) + calc.f_H + (state.dimTb + state.dimTr)/1000 + 0.4;
+
+      const padX = 45;
+      const padY = 35;
+      const scaleX = (w - padX * 2) / totalWidthM;
+      const scaleY = (h - padY * 2) / totalHeightM;
+      const scale = Math.min(scaleX, scaleY);
+
+      const centerX = w / 2;
+
+      const neckAbovePx = state.hasNeck ? (calc.n_above * scale) : 0;
+      const glY = padY + neckAbovePx + 15;
+
+      const footingHPx = calc.f_H * scale;
+      const footingWPx = calc.f_L * scale;
+      const tbPx = (state.dimTb / 1000) * scale;
+      const trPx = (state.dimTr / 1000) * scale;
+
+      const neckHPx = state.hasNeck ? (calc.n_H * scale) : 0;
+      const neckWPx = state.hasNeck ? (calc.n_L * scale) : 0;
+      const neckBelowGLPx = state.hasNeck ? (calc.neck_below_GL * scale) : 0;
+
+      const footingTopY = glY + neckBelowGLPx;
+      const footingBottomY = footingTopY + footingHPx;
+      const leanBottomY = footingBottomY + tbPx;
+      const stoneBottomY = leanBottomY + trPx;
+
+      // 1. GL
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(15, glY);
+      ctx.lineTo(w - 15, glY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#4ade80';
+      ctx.font = 'bold 10px Pretendard, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('▼ G.L (지표면 / Ground Line)', 18, glY - 6);
+
+      // 2. Excavation line
+      const excvBotWPx = calc.excv_bot_L * scale;
+      const excvTopWPx = (calc.excv_bot_L + 2 * (state.slope * calc.H_excv)) * scale;
+
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(centerX - excvTopWPx / 2, glY);
+      ctx.lineTo(centerX - excvBotWPx / 2, stoneBottomY);
+      ctx.lineTo(centerX + excvBotWPx / 2, stoneBottomY);
+      ctx.lineTo(centerX + excvTopWPx / 2, glY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 3. Crushed Stone
+      const subWPx = (calc.f_L + (state.dimOw * 2 / 1000)) * scale;
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(centerX - subWPx / 2, leanBottomY, subWPx, trPx);
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(centerX - subWPx / 2, leanBottomY, subWPx, trPx);
+
+      // 4. Lean Concrete
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(centerX - subWPx / 2, footingBottomY, subWPx, tbPx);
+      ctx.strokeStyle = '#d97706';
+      ctx.strokeRect(centerX - subWPx / 2, footingBottomY, subWPx, tbPx);
+
+      // 5. Footing Concrete
+      ctx.fillStyle = '#1d4ed8';
+      ctx.fillRect(centerX - footingWPx / 2, footingTopY, footingWPx, footingHPx);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(centerX - footingWPx / 2, footingTopY, footingWPx, footingHPx);
+
+      // 6. Pedestals
+      if (state.hasNeck && calc.n_cnt > 0) {
+        const neckTopY = glY - neckAbovePx;
+        ctx.fillStyle = '#3b82f6';
+        ctx.strokeStyle = '#93c5fd';
+        ctx.lineWidth = 1.5;
+
+        if (calc.n_cnt === 1) {
+          ctx.fillRect(centerX - neckWPx / 2, neckTopY, neckWPx, neckHPx);
+          ctx.strokeRect(centerX - neckWPx / 2, neckTopY, neckWPx, neckHPx);
+          drawAnchorBolts(ctx, centerX, neckTopY, neckWPx);
+        } else if (calc.n_cnt >= 2) {
+          const offset = footingWPx * 0.28;
+          ctx.fillRect(centerX - offset - neckWPx / 2, neckTopY, neckWPx, neckHPx);
+          ctx.strokeRect(centerX - offset - neckWPx / 2, neckTopY, neckWPx, neckHPx);
+          drawAnchorBolts(ctx, centerX - offset, neckTopY, neckWPx);
+
+          ctx.fillRect(centerX + offset - neckWPx / 2, neckTopY, neckWPx, neckHPx);
+          ctx.strokeRect(centerX + offset - neckWPx / 2, neckTopY, neckWPx, neckHPx);
+          drawAnchorBolts(ctx, centerX + offset, neckTopY, neckWPx);
+        }
+      } else {
+        drawAnchorBolts(ctx, centerX, footingTopY, footingWPx * 0.45);
+      }
+
+      // Dimension Texts
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 10px Pretendard, sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`하부 푸팅: ${state.footingL} × ${state.footingW} × H${state.footingH}`, centerX, footingTopY + footingHPx / 2 + 4);
+
+      if (state.hasNeck) {
+        ctx.fillStyle = '#e0f2fe';
+        ctx.fillText(`목 c_L${state.neckL} (노출 ${state.neckAboveGL}mm)`, centerX, glY - 4);
+      }
+
+      // Vertical Excavation Depth
+      const dimX = w - 24;
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(dimX, glY);
+      ctx.lineTo(dimX, stoneBottomY);
+      ctx.moveTo(dimX - 4, glY);
+      ctx.lineTo(dimX + 4, glY);
+      ctx.moveTo(dimX - 4, stoneBottomY);
+      ctx.lineTo(dimX + 4, stoneBottomY);
+      ctx.stroke();
+
+      ctx.save();
+      ctx.translate(dimX - 7, (glY + stoneBottomY) / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = '#f87171';
+      ctx.textAlign = 'center';
+      ctx.font = '10px Pretendard, sans-serif';
+      ctx.fillText(`굴착심도 ${calc.H_excv.toFixed(2)}m`, 0, 0);
+      ctx.restore();
+    }
+
+    function drawAnchorBolts(ctx, x, topY, width) {
+      const bDist = width * 0.45;
+      ctx.strokeStyle = '#f8fafc';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x - bDist - 6, topY);
+      ctx.lineTo(x + bDist + 6, topY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x - bDist, topY - 10);
+      ctx.lineTo(x - bDist, topY + 22);
+      ctx.moveTo(x + bDist, topY - 10);
+      ctx.lineTo(x + bDist, topY + 22);
+      ctx.stroke();
+    }
+
+    // Input Sync & Manual Override Detection
+    function handleDimensionChange() {
+      state.hasNeck = elements.chkHasNeck.checked;
+      state.neckL = Math.max(50, parseFloat(elements.inNeckL.value) || 0);
+      state.neckW = Math.max(50, parseFloat(elements.inNeckW.value) || 0);
+      state.neckH = Math.max(50, parseFloat(elements.inNeckH.value) || 0);
+      state.neckAboveGL = Math.max(0, parseFloat(elements.inNeckAboveGL.value) || 0);
+      state.neckCount = Math.max(1, parseInt(elements.inNeckCount.value) || 1);
+
+      state.footingL = Math.max(100, parseFloat(elements.inFootingL.value) || 0);
+      state.footingW = Math.max(100, parseFloat(elements.inFootingW.value) || 0);
+      state.footingH = Math.max(50, parseFloat(elements.inFootingH.value) || 0);
+      state.qtyN = Math.max(1, parseInt(elements.inQtyN.value) || 1);
+
+      if (state.hasNeck) {
+        elements.neckInputs.classList.remove('opacity-40', 'pointer-events-none');
+      } else {
+        elements.neckInputs.classList.add('opacity-40', 'pointer-events-none');
+      }
+
+      // Re-run smart rules when dimensions change
+      syncSmartFields();
+      updateDashboard();
+    }
+
+    // Manual Edit Event Bindings for Section 3 & 4
+    function bindManualOverride(inputEl, stateKey) {
+      inputEl.addEventListener('input', () => {
+        state.isManual[stateKey] = true;
+        state[stateKey] = Math.max(0, parseFloat(inputEl.value) || 0);
+        updateStatusBadges();
+        updateDashboard();
+      });
+    }
+
+    // Foundation Type Preset Applier
+    function applyTypePreset(typeKey) {
+      state.type = typeKey;
+      const p = TYPE_PRESETS[typeKey];
+      if (!p) return;
+
+      elements.currentTypeDesc.textContent = p.desc;
+      elements.chkHasNeck.checked = p.hasNeck;
+
+      elements.inNeckL.value = p.neckL;
+      elements.inNeckW.value = p.neckW;
+      elements.inNeckH.value = p.neckH;
+      elements.inNeckAboveGL.value = p.neckAboveGL;
+      elements.inNeckCount.value = p.neckCount;
+
+      elements.inFootingL.value = p.footingL;
+      elements.inFootingW.value = p.footingW;
+      elements.inFootingH.value = p.footingH;
+      elements.inQtyN.value = p.qtyN;
+
+      // Update button styling
+      document.querySelectorAll('#typeTabGroup .tab-btn').forEach(btn => {
+        if (btn.dataset.type === typeKey) {
+          btn.className = "tab-btn px-3 py-2.5 rounded-xl text-xs font-bold border transition text-center bg-blue-600 text-white border-blue-600 shadow-sm";
+        } else {
+          btn.className = "tab-btn px-3 py-2.5 rounded-xl text-xs font-bold border transition text-center bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100";
+        }
+      });
+
+      handleDimensionChange();
+      showToast(`'${p.title}' 기초 형식이 로드되었습니다.`);
+    }
+
+    // Toast Utility
+    let toastTimer;
+    function showToast(msg) {
+      clearTimeout(toastTimer);
+      elements.toastMsg.textContent = msg;
+      elements.toast.classList.remove('translate-y-20', 'opacity-0');
+      elements.toast.classList.add('translate-y-0', 'opacity-100');
+      toastTimer = setTimeout(() => {
+        elements.toast.classList.remove('translate-y-0', 'opacity-100');
+        elements.toast.classList.add('translate-y-20', 'opacity-0');
+      }, 2500);
+    }
+
+    // TSV Export (Excel)
+    elements.btnCopyTsv.addEventListener('click', () => {
+      const calc = performCalculations();
+      const boq = generateBOQ(calc);
+
+      const header = ["No", "공종명", "규격", "단위", "수량", "수량산출근거"].join("\t");
+      const rows = boq.map(r => [r.no, r.name, r.spec, r.unit, r.qty, `"${r.formula}"`].join("\t"));
+      const tsvContent = [header, ...rows].join("\r\n");
+
+      const tempTextarea = document.createElement('textarea');
+      tempTextarea.value = tsvContent;
+      tempTextarea.style.position = 'fixed';
+      tempTextarea.style.left = '-9999px';
+      document.body.appendChild(tempTextarea);
+      tempTextarea.select();
+      
+      try {
+        document.execCommand('copy');
+        showToast('엑셀 호환 데이터가 복사되었습니다! 엑셀 시트에 Ctrl+V 하세요.');
+      } catch (e) {
+        showToast('클립보드 접근 권한이 제한되었습니다.');
+      } finally {
+        document.body.removeChild(tempTextarea);
+      }
+    });
+
+    // CSV Download (UTF-8 BOM)
+    elements.btnDownloadCsv.addEventListener('click', () => {
+      const calc = performCalculations();
+      const boq = generateBOQ(calc);
+
+      const header = ["No", "공종명", "규격", "단위", "수량", "수량산출근거"].join(",");
+      const rows = boq.map(r => [
+        r.no,
+        `"${r.name.replace(/"/g, '""')}"`,
+        `"${r.spec.replace(/"/g, '""')}"`,
+        `"${r.unit.replace(/"/g, '""')}"`,
+        r.qty,
+        `"${r.formula.replace(/"/g, '""')}"`
+      ].join(","));
+
+      const csvData = "\uFEFF" + [header, ...rows].join("\r\n");
+      const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const timeStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      
+      a.href = downloadUrl;
+      a.download = `전광판기초_수량내역서_${state.type}_${timeStr}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+      showToast('CSV 수량산출서 다운로드가 완료되었습니다.');
+    });
+
+    // Print Button
+    elements.btnPrint.addEventListener('click', () => window.print());
+
+    // Reset All Auto Button
+    elements.btnResetAuto.addEventListener('click', resetAllToAuto);
+
+    // Context Condition Selectors
+    elements.selSoilType.addEventListener('change', (e) => {
+      state.soilType = e.target.value;
+      syncSmartFields();
+      updateDashboard();
+    });
+
+    elements.selExcavationMethod.addEventListener('change', (e) => {
+      state.excvMethod = e.target.value;
+      syncSmartFields();
+      updateDashboard();
+    });
+
+    elements.selRebarGrade.addEventListener('change', (e) => {
+      state.rebarGrade = e.target.value;
+      syncSmartFields();
+      updateDashboard();
+    });
+
+    // Dimension Inputs Event Listeners
+    [
+      elements.chkHasNeck,
+      elements.inNeckL, elements.inNeckW, elements.inNeckH, elements.inNeckAboveGL, elements.inNeckCount,
+      elements.inFootingL, elements.inFootingW, elements.inFootingH, elements.inQtyN
+    ].forEach(el => {
+      el.addEventListener('input', handleDimensionChange);
+      el.addEventListener('change', handleDimensionChange);
+    });
+
+    // Bind Manual Overrides to Section 3 & 4
+    bindManualOverride(elements.inDimOw, 'dimOw');
+    bindManualOverride(elements.inDimTb, 'dimTb');
+    bindManualOverride(elements.inDimTr, 'dimTr');
+    bindManualOverride(elements.inDimS, 'dimS');
+    bindManualOverride(elements.inParamSlope, 'slope');
+    bindManualOverride(elements.inParamSoilL, 'soilL');
+    bindManualOverride(elements.inParamRebarRatio, 'rebarRatio');
+
+    // Type Tabs
+    document.querySelectorAll('#typeTabGroup .tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => applyTypePreset(btn.dataset.type));
+    });
+
+    // Initialize
+    window.addEventListener('load', () => {
+      lucide.createIcons();
+      applyTypePreset('single_pedestal');
+    });
+  </script>
+</body>
+</html>
