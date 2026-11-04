@@ -105,8 +105,15 @@ function geometry(project,materials){
    for(const rear of back.vertical)if(!matched.has(rear.id))connectorWarnings.push(`뒷면 ${rear.id}: 앞면의 같은 중심선에 세로 보강재가 없어 연결재 자동 산출 제외`);
  }
  list(project.extras,'추가 부재');unique(project.extras,'추가 부재');
- for(const x of project.extras){text(x.name,'추가 부재 이름');number(x.quantity,'추가 부재 대당 수량',1,100000,true);number(x.length,'추가 부재 길이',1,100000);add('extra-'+x.id,x.name,x.length,x.quantity,x,'extra');}
- return {general:g,rows,panels,depthConnectors,connectorWarnings};
+ for(const x of project.extras){text(x.name,'추가 부재 이름');number(x.quantity,'추가 부재 대당 수량',1,100000,true);number(x.length,'추가 부재 길이',1,100000);if(x.post!==undefined&&typeof x.post!=='boolean')throw Error('기초 지주 표시를 확인하세요.');add('extra-'+x.id,x.name,x.length,x.quantity,x,'extra');}
+ // Extra members marked as posts describe the steel column the foundation checks.
+ const postRows=project.extras.filter(x=>x.post===true);let posts=null;
+ if(postRows.length){
+  const first=postRows[0];if(postRows.some(x=>x.materialId!==first.materialId||x.rotation!==first.rotation))throw Error('기초 지주로 표시한 추가 부재는 같은 자재·방향이어야 합니다.');
+  const m=materials.get(first.materialId);
+  posts={count:postRows.reduce((n,x)=>n+x.quantity,0),length:Math.max(...postRows.map(x=>x.length)),rotation:first.rotation,names:postRows.map(x=>x.name),material:{id:m.id,name:m.name,family:m.family,face:m.face,depth:m.depth,t1:m.t1,t2:m.t2}};
+ }
+ return {general:g,rows,panels,depthConnectors,connectorWarnings,posts};
 }
 function segmentPlan(row,maxLength,cut){
  const s=row.splice,step=cut.precision;
@@ -196,7 +203,7 @@ function calculate(project,{compare=false}={}){
  number(cut.kerf,'톱날 손실',0,20);number(cut.endTrim,'양끝 정리',0,1000);number(cut.overlap,'겹침 여유',0,1000);
  if(![0,0.1,1].includes(cut.precision)||!['bars','waste','cost'].includes(cut.objective))throw Error('절단 정밀도 또는 구매 목표를 확인하세요.');
  if(cut.precision&&Math.abs(roundLength(cut.overlap,cut.precision)-cut.overlap)>EPS)throw Error('겹침 여유도 선택한 절단 단위에 맞춰 입력하세요.');
- const {general,rows,panels,depthConnectors,connectorWarnings}=geometry(project,materials);
+ const {general,rows,panels,depthConnectors,connectorWarnings,posts}=geometry(project,materials);
  list(project.inventory,'보유 자재',300);unique(project.inventory,'보유 자재');
  for(const x of project.inventory){identity(x.materialId,'보유 자재');if(!materials.has(x.materialId))throw Error('보유 자재의 규격을 선택하세요.');number(x.length,'재고 길이',1,100000);number(x.quantity,'보유 본수',1,1000000,true);number(x.trim,'재고 양끝 정리',0,1000);if(x.trim>=x.length)throw Error('재고 정리 여유는 길이보다 작아야 합니다.');}
  const groups=[];
@@ -224,7 +231,7 @@ function calculate(project,{compare=false}={}){
  const knownSubtotal=Object.values(costs).reduce((n,x)=>n+x,0),complete=!purchase.unknownPrices&&!unknownAccessories&&purchase.status==='ready';
  costs.knownSubtotal=knownSubtotal;costs.complete=complete;costs.tax=knownSubtotal*pc.taxRate/100;costs.total=complete?knownSubtotal+costs.tax:null;costs.unknownPrices=purchase.unknownPrices+unknownAccessories;
  const frameWeight=rows.reduce((n,r)=>n+r.weight,0),accessoryWeight=accessories.reduce((n,a)=>n+a.weight,0),cabinetWeight=project.cabinet.enabled?project.cabinet.weightEach*project.cabinet.columns*project.cabinet.rows*general.quantity:0,equipmentWeight=general.extraEquipment*general.quantity+cabinetWeight;
- return {general,rows,panels,depthConnectors,connectorWarnings,purchase,accessories,costs,frameWeight,accessoryWeight,cabinetWeight,equipmentWeight,totalWeight:frameWeight+accessoryWeight+equipmentWeight,totalLength:rows.reduce((n,r)=>n+r.totalLength,0),totalPieces:rows.reduce((n,r)=>n+r.count,0),roundingRows:rows.filter(r=>Math.abs(r.delta)>EPS),materials:project.materials};
+ return {general,rows,panels,depthConnectors,connectorWarnings,posts,purchase,accessories,costs,frameWeight,accessoryWeight,cabinetWeight,equipmentWeight,totalWeight:frameWeight+accessoryWeight+equipmentWeight,totalLength:rows.reduce((n,r)=>n+r.totalLength,0),totalPieces:rows.reduce((n,r)=>n+r.count,0),roundingRows:rows.filter(r=>Math.abs(r.delta)>EPS),materials:project.materials};
 }
 function migrate(raw){
  if(raw?.version===5){const p=clone(raw),ui=p.ui&&typeof p.ui==='object'&&!Array.isArray(p.ui)?p.ui:{};p.ui={...ui,inputMode:ui.inputMode==='detailed'?'detailed':'simple'};if(p.general&&p.general.verticalDepthTies===undefined)p.general.verticalDepthTies=true;calculate(p);return p;}

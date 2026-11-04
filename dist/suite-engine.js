@@ -1,6 +1,21 @@
 (function(root){
   'use strict';
   const clone=value=>JSON.parse(JSON.stringify(value));
+  // Steel column section of the extra members marked as posts in the frame. Front wind acts along the
+  // frame depth, so face (b) maps to the foundation column width (X) and depth (d) to its depth (Y).
+  function postTransfer(result,limits){
+    const s=result?.posts;if(!s)return {patch:{},notes:[],posts:null};
+    const m=s.material,rotated=s.rotation===1,width=rotated?m.depth:m.face,depth=rotated?m.face:m.depth,notes=[];
+    let patch=null;
+    if(!(m.t1>0))notes.push(`지주 자재 ${m.name}의 두께가 없어 기초 기둥 단면을 전달하지 않습니다. 구조물 자재에 관·웹 두께를 입력하세요.`);
+    else if(m.family==='pipe')patch={columnShape:'circle',columnDiameter:m.face,columnThickness:m.t1};
+    else if(m.family==='square'||m.family==='rect')patch={columnShape:'rect',columnWidth:width,columnDepth:depth,columnThickness:m.t1};
+    else if(m.family==='hbeam'&&!rotated)patch={columnShape:'h',columnWidth:m.face,columnDepth:m.depth,columnThickness:m.t1,columnFlange:m.t2};
+    else if(m.family==='hbeam')notes.push('H형강 지주를 90° 회전해 웹이 전광판 면과 나란합니다. 기초 기둥 검토는 웹이 정면 풍향인 배치만 지원하므로 단면을 전달하지 않습니다.');
+    else notes.push(`지주 자재 ${m.name}은 단면 종류가 직접 입력이라 기초 기둥 단면을 전달하지 않습니다. 사각관·직사각관·H형강·원형 강관 중에서 고르세요.`);
+    if(patch)for(const [key,value]of Object.entries(patch))if(typeof value==='number'&&limits[key]&&(value<limits[key][0]||value>limits[key][1])){notes.push(`지주 단면 ${key} ${value}가 기초 기둥 입력 범위 ${limits[key][0]}~${limits[key][1]}를 벗어나 전달하지 않습니다.`);patch=null;break;}
+    return {patch:patch||{},notes,posts:s};
+  }
   // keepProduct: the frame has no product weight yet, so the foundation keeps its own product weight (panelKgM2).
   function transfer(result,limits,options={}){
     if(!result)throw Error('구조물 입력 오류를 먼저 수정하세요.');
@@ -9,7 +24,8 @@
     const patch={signW:g.width,signH:g.height,panelKgM2:result.cabinetWeight/q/area,postKg:(result.frameWeight+result.accessoryWeight)/q,extraKg:(result.equipmentWeight-result.cabinetWeight)/q};
     if(g.planes===2)patch.signDepth=g.depth;
     if(options.keepProduct)delete patch.panelKgM2;
-    for(const [key,value]of Object.entries(patch)){
+    const weights=Object.keys(patch);Object.assign(patch,postTransfer(result,limits).patch);
+    for(const key of weights){const value=patch[key];
       const [min,max]=limits[key];
       const labels={signW:'전광판 가로',signH:'전광판 세로',signDepth:'전광판 깊이',panelKgM2:'전광판 면적당 중량',postKg:'지주·프레임 중량',extraKg:'추가 장비 중량'};
       if(!Number.isFinite(value)||value<min||value>max)throw Error(`${labels[key]} (${key}): 기초의 허용 범위 ${min}~${max}를 벗어납니다. 구조물 값을 확인하세요.`);
@@ -23,7 +39,7 @@
     if(!link||(link.source!==fingerprint(frame,patch)&&link.source!==legacyFingerprint(frame,patch))||link.active!==foundation.project.active)return false;
     const current=foundation.project.items[foundation.project.active].p;
     if(link.itemId&&link.itemId!==foundation.project.items[foundation.project.active].id)return false;
-    return Object.entries(patch).every(([key,value])=>Math.abs(current[key]-value)<=1e-8*Math.max(1,Math.abs(value)));
+    return Object.entries(patch).every(([key,value])=>typeof value==='string'?current[key]===value:Math.abs(current[key]-value)<=1e-8*Math.max(1,Math.abs(value)));
   }
   function cleanLink(raw){
     if(!raw||typeof raw.source!=='string'||raw.source.length>2000||!Number.isInteger(raw.active)||raw.active<0||raw.active>=50)return null;
@@ -91,6 +107,7 @@
       total.items.push(row);total.boards+=row.boards;total.foundations+=row.foundations;total.posts+=(r.supports.total||0)*repeats;total.unknownPosts ||= !r.supports.known;
       total.concrete+=row.concrete;total.rebar+=row.rebar;total.subtotal+=cost.subtotal*repeats;total.vat+=cost.vat*repeats;total.cost+=row.total;total.anchors+=cost.a.anchors*repeats;
       const accessoryRows=cost.rows.filter(q=>['anchor','template','grout','ground','elp'].includes(q.id)).map(q=>({name:q.name,unit:q.unit,total:q.quantity,formula:q.formula+(q.id==='grout'?' · 배치 1회 주문 포수를 올림한 후 반복 횟수 적용; 배치 간 남은 재료 공유는 별도':'')}));
+      if(cost.a.plate)accessoryRows.push({name:cost.a.plate.name,unit:'kg',total:cost.a.plate.kg,formula:cost.a.plate.formula});
       accessoryRows.push({name:'그라우트 순체적',unit:'L',total:cost.a.liters,formula:'플레이트 면적 × 그라우트 두께 · 주문 포수와 중복 합산 금지'});
       for(const q of [...r.boq,...accessoryRows]){const key=q.name+'|'+q.unit,current=allQuantities.get(key)||{name:q.name,unit:q.unit,quantity:0,notes:[]};current.quantity+=q.total*repeats;if(q.formula&&!current.notes.includes(q.formula))current.notes.push(q.formula);allQuantities.set(key,current);}
       for(const q of cost.rows)if(q.quantity>0&&q.unitPrice===0)missing.set(q.id,{id:q.id,name:q.name});
@@ -99,7 +116,10 @@
   }
   function compareCandidates(p,engine,estimate,prices){
     if(!engine.canScreen(p))throw Error('후보 비교는 중앙 1주 독립기초의 예비 계산 범위에 적용합니다.');
-    const base=engine.calculate(p),current=base.g.H,heights=[...new Set([current-100,current,current+100].filter(h=>h>=1500&&h<=p.autoHMax))];
+    const base=engine.calculate(p),current=base.g.H;
+    // Candidates keep the base plate, anchors and neck chosen for the current result.
+    if(base.connection?.found)p={...p,...base.connection.values,connectionMode:'manual'};
+    const heights=[...new Set([current-100,current,current+100].filter(h=>h>=1500&&h<=p.autoHMax))];
     const alternatives=[];let evaluated=0;
     for(const H of heights){
       let best=null;
@@ -126,6 +146,6 @@
     const priceReview=raw.priceReview&&typeof raw.priceReview.source==='string'&&raw.priceReview.source.length<20000?{source:raw.priceReview.source,confirmed:raw.priceReview.confirmed===true,included:Array.isArray(raw.priceReview.included)?raw.priceReview.included.filter(x=>typeof x==='string').slice(0,30):[]}:null;
     return {format:'led-integrated-project',version:1,name:String(raw.name||'전광판 통합 프로젝트').slice(0,80),view:['frame','foundation','overview'].includes(raw.view)?raw.view:'frame',frame,foundation,link,massReview:cleanReview(raw.massReview),installationCounts,priceReview,costReview:typeof raw.costReview==='string'&&raw.costReview.length<30000?raw.costReview:null};
   }
-  const api={clone,transfer,fingerprint,legacyFingerprint,isLinked,effectiveStatus,governing,upliftReference,validate,itemKey,cleanCounts,status,dataStatus,aggregate,compareCandidates};root.CalculatorSuiteEngine=api;
+  const api={clone,postTransfer,transfer,fingerprint,legacyFingerprint,isLinked,effectiveStatus,governing,upliftReference,validate,itemKey,cleanCounts,status,dataStatus,aggregate,compareCandidates};root.CalculatorSuiteEngine=api;
   if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);

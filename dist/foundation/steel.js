@@ -117,22 +117,23 @@
     rows.push(row('지주 상단 처짐 (사용 풍하중 · 참고)',deflection,limit,null,`정면 풍하중을 화면 중심 높이의 집중하중으로 본 캔틸레버 처짐 · mm · 비교값 L/100은 참고이며 허용 처짐은 발주·제작 기준을 확인`,'참고'));
     return rows;
   }
-  function anchorChecks(p,g,l){
-    if(!p.anchorCount)return [pending('앵커 · 인장·전단','미검토 · 앵커 없음','강재 지주를 고정하는 앵커 수량을 입력하세요.')];
-    if(!(p.anchorEmbed>0))return [pending('앵커 · 인장·전단','미검토 · 입력 필요','앵커 묻힘깊이 hef를 입력하면 강재·콘크리트 인장 파괴를 예비 검토합니다.')];
-    if(p.plateShape!=='circle'&&p.anchorCount%4!==0)return [pending('앵커 · 인장·전단','미검토 · 배치 오류','사각 플레이트의 앵커 개수는 4의 배수로 입력하세요.')];
-    const a=actions(p,g,l),pos=anchorPositions(p),n=pos.length,da=p.anchorDiameter,hefInput=p.anchorEmbed;
+  // Rigid plate, elastic bolt group about the bolt centroid; grout bearing is not used for the lever arm.
+  // Returns per-bolt forces (N) for the uplift combination (stabilize × upper weight) and the bearing one (dead factor).
+  function anchorForces(p,a){
+    const pos=anchorPositions(p),n=pos.length;
     // Bolts on one line (within rounding of the bolt-circle trigonometry) cannot resist moment across it.
     const lever=v=>v>1e-6?v:0,sx=lever(pos.reduce((t,[x])=>t+x*x,0)),sy=lever(pos.reduce((t,[,y])=>t+y*y,0));
-    // Rigid plate, elastic bolt group about the bolt centroid; grout bearing is not used for the lever arm.
-    // Minimum dead load (stabilize × upper weight) with the factored wind moment governs uplift.
-    const tension=pos.map(([x,y])=>(sy>0?a.mFront*1e6*y/sy:a.mFront>0?Infinity:0)+(sx>0?a.mSide*1e6*x/sx:a.mSide>0?Infinity:0)-a.pMin*1000/n);
+    const moment=(m,c,sum)=>sum>0?m*1e6*c/sum:m>0?Infinity:0;
+    const tension=pos.map(([x,y])=>moment(a.mFront,y,sy)+moment(a.mSide,x,sx)-a.pMin*1000/n);
+    return {pos,n,sx,sy,tension,line:!Number.isFinite(Math.max(0,...tension))};
+  }
+  // Numeric anchor review (N, mm). The row builder and the automatic search share it.
+  function anchorEval(p,g,a,f=anchorForces(p,a)){
+    const {pos,n,tension}=f,da=p.anchorDiameter,hefInput=p.anchorEmbed;
+    if(f.line)return {line:true,ok:false};
     const tMax=Math.max(0,...tension)/1000,vb=Math.hypot(a.vFront,a.vSide)/n;
-    if(!Number.isFinite(tMax))return [row('앵커 강재 인장 (0.9D + γW)',null,null,false,'앵커가 한 줄로 놓여 해당 방향 모멘트를 받을 수 없습니다. 앵커 개수·배치를 수정하세요.','미충족')];
     const futa=Math.min(p.anchorFu,1.9*p.anchorFy,860),Ase=Math.PI/4*(da-0.9382*threadPitch(da))**2,grout=p.groutThickness>0?0.8:1;
     const phiNsa=0.75*Ase*futa/1000,phiVsa=0.65*0.6*Ase*futa*grout/1000;
-    const rows=[];
-    rows.push(row('앵커 강재 인장 (0.9D + γW)',tMax,phiNsa,tMax<=phiNsa+1e-9,`M${da} ${n}개 · Ase ${Ase.toFixed(1)} mm² · futa ${futa.toFixed(0)} MPa · 최대 인장 볼트 1개 · kN · 강체 플레이트·볼트군 탄성분배 가정`));
     // Concrete breakout of the tension group in the neck (cracked, Condition B, φ=0.70).
     const cL=g.neck?g.cL:g.L,cW=g.neck?g.cW:g.W,group=pos.filter((_,i)=>tension[i]>1e-6),loadsT=tension.filter(t=>t>1e-6);
     let breakout=null;
@@ -150,27 +151,110 @@
       const Nb=hef>=280&&hef<=635?3.9*Math.sqrt(p.fck)*hef**(5/3):10*Math.sqrt(p.fck)*hef**1.5;
       breakout={hef,ANc,ANco:9*hef*hef,psiEd,psiEc,Nb,sum:sum/1000,capacity:0.70*ANc/(9*hef*hef)*psiEc*psiEd*Nb/1000,caMin,count:group.length};
     }
-    if(breakout)rows.push(row('앵커 콘크리트 콘 파괴 (인장 그룹)',breakout.sum,breakout.capacity,breakout.sum<=breakout.capacity+1e-9,`인장 볼트 ${breakout.count}개 합계 · 적용 hef ${breakout.hef.toFixed(0)} mm (입력 ${hefInput}) · ANc/ANco ${(breakout.ANc/breakout.ANco).toFixed(3)} · ψed ${breakout.psiEd.toFixed(3)} · ψec ${breakout.psiEc.toFixed(3)} · 균열 콘크리트·보조철근 없음 φ=0.70 · 목 주근을 앵커 보강철근으로 설계하면 별도 검토로 대체`));
-    else rows.push(row('앵커 콘크리트 콘 파괴 (인장 그룹)',0,0,true,'모든 볼트가 압축 상태 · 인장 그룹 없음','충족'));
     const headed=p.anchorHead!=='hooked',Abrg=0.866*(1.5*da)**2-Math.PI/4*da*da;
-    const Np=headed?8*Abrg*p.fck:0.9*p.fck*3*da*da,phiNp=0.70*Np/1000;
-    rows.push(row('앵커 뽑힘 (인장)',tMax,phiNp,tMax<=phiNp+1e-9,headed?`머리·너트 정착 · 육각 맞변 1.5da 가정 Abrg ${Abrg.toFixed(0)} mm² · Np=8Abrg·fck · 균열 콘크리트 φ=0.70`:'J·L형 갈고리 · eh=3da 최소값 가정 · Np=0.9fck·eh·da · 균열 콘크리트 φ=0.70'));
-    rows.push(row('앵커 강재 전단',vb,phiVsa,vb<=phiVsa+1e-9,`전단력을 볼트 ${n}개에 균등 분배 · kN${grout<1?' · 그라우트 패드 0.8 감소':''} · 전단 콘크리트 파괴·프라이아웃은 별도`));
+    const phiNp=0.70*(headed?8*Abrg*p.fck:0.9*p.fck*3*da*da)/1000;
     const tu=Math.max(tMax/phiNsa,tMax/phiNp,breakout?breakout.sum/breakout.capacity:0),vu=vb/phiVsa,both=tu>0.2&&vu>0.2;
     const combined=both?tu+vu:Math.max(tu,vu),limit=both?1.2:1;
-    rows.push(row('앵커 인장·전단 조합',combined,limit,combined<=limit+1e-9,both?'Nua/φNn + Vua/φVn ≤ 1.2 · 인장은 강재·콘 파괴·뽑힘 중 지배값':'한쪽 사용률이 0.2 이하 · 지배 사용률 ≤ 1.0'));
     // Torqued cast-in anchors: spacing ≥ 4da, edge distance ≥ 6da; embedment must fit the concrete.
     let smin=Infinity;for(let i=0;i<n;i++)for(let j=0;j<i;j++)smin=Math.min(smin,Math.hypot(pos[i][0]-pos[j][0],pos[i][1]-pos[j][1]));
     const edge=Math.min(...pos.map(([x,y])=>Math.min(cL/2-Math.abs(x),cW/2-Math.abs(y)))),sRatio=n>1?smin/(4*da):Infinity,eRatio=edge/(6*da);
-    const spacingFirst=sRatio<=eRatio;
-    rows.push(row('앵커 최소 간격·연단거리',spacingFirst?smin:edge,spacingFirst?4*da:6*da,sRatio>=1-1e-9&&eRatio>=1-1e-9,`최소 간격 ${Number.isFinite(smin)?smin.toFixed(0):'—'} mm ≥ 4da ${4*da} · 목 끝까지 ${edge.toFixed(0)} mm ≥ 6da ${6*da} (너트 조임 가정)`));
     const depth=(g.neck?g.cH:0)+g.H-p.cover;
-    rows.push(row('앵커 묻힘깊이 공간',hefInput,depth,hefInput<=depth+1e-9,'목 상단부터 푸팅 하부 피복까지의 깊이 · mm'));
+    const pass={steel:tMax<=phiNsa+1e-9,breakout:!breakout||breakout.sum<=breakout.capacity+1e-9,pullout:tMax<=phiNp+1e-9,shear:vb<=phiVsa+1e-9,combined:combined<=limit+1e-9,layout:sRatio>=1-1e-9&&eRatio>=1-1e-9,depth:hefInput<=depth+1e-9};
+    return {n,da,hefInput,tMax,vb,futa,Ase,grout,phiNsa,phiVsa,breakout,headed,Abrg,phiNp,both,combined,limit,smin,edge,sRatio,eRatio,depth,pass,ok:Object.values(pass).every(Boolean)};
+  }
+  function anchorChecks(p,g,l){
+    if(!p.anchorCount)return [pending('앵커 · 인장·전단','미검토 · 앵커 없음','강재 지주를 고정하는 앵커 수량을 입력하세요.')];
+    if(!(p.anchorEmbed>0))return [pending('앵커 · 인장·전단','미검토 · 입력 필요','앵커 묻힘깊이 hef를 입력하면 강재·콘크리트 인장 파괴를 예비 검토합니다.')];
+    if(p.plateShape!=='circle'&&p.anchorCount%4!==0)return [pending('앵커 · 인장·전단','미검토 · 배치 오류','사각 플레이트의 앵커 개수는 4의 배수로 입력하세요.')];
+    const e=anchorEval(p,g,actions(p,g,l));
+    if(e.line)return [row('앵커 강재 인장 (0.9D + γW)',null,null,false,'앵커가 한 줄로 놓여 해당 방향 모멘트를 받을 수 없습니다. 앵커 개수·배치를 수정하세요.','미충족')];
+    const {n,da,breakout:b,pass}=e,rows=[];
+    rows.push(row('앵커 강재 인장 (0.9D + γW)',e.tMax,e.phiNsa,pass.steel,`M${da} ${n}개 · Ase ${e.Ase.toFixed(1)} mm² · futa ${e.futa.toFixed(0)} MPa · 최대 인장 볼트 1개 · kN · 강체 플레이트·볼트군 탄성분배 가정`));
+    if(b)rows.push(row('앵커 콘크리트 콘 파괴 (인장 그룹)',b.sum,b.capacity,pass.breakout,`인장 볼트 ${b.count}개 합계 · 적용 hef ${b.hef.toFixed(0)} mm (입력 ${e.hefInput}) · ANc/ANco ${(b.ANc/b.ANco).toFixed(3)} · ψed ${b.psiEd.toFixed(3)} · ψec ${b.psiEc.toFixed(3)} · 균열 콘크리트·보조철근 없음 φ=0.70 · 목 주근을 앵커 보강철근으로 설계하면 별도 검토로 대체`));
+    else rows.push(row('앵커 콘크리트 콘 파괴 (인장 그룹)',0,0,true,'모든 볼트가 압축 상태 · 인장 그룹 없음','충족'));
+    rows.push(row('앵커 뽑힘 (인장)',e.tMax,e.phiNp,pass.pullout,e.headed?`머리·너트 정착 · 육각 맞변 1.5da 가정 Abrg ${e.Abrg.toFixed(0)} mm² · Np=8Abrg·fck · 균열 콘크리트 φ=0.70`:'J·L형 갈고리 · eh=3da 최소값 가정 · Np=0.9fck·eh·da · 균열 콘크리트 φ=0.70'));
+    rows.push(row('앵커 강재 전단',e.vb,e.phiVsa,pass.shear,`전단력을 볼트 ${n}개에 균등 분배 · kN${e.grout<1?' · 그라우트 패드 0.8 감소':''} · 전단 콘크리트 파괴·프라이아웃은 별도`));
+    rows.push(row('앵커 인장·전단 조합',e.combined,e.limit,pass.combined,e.both?'Nua/φNn + Vua/φVn ≤ 1.2 · 인장은 강재·콘 파괴·뽑힘 중 지배값':'한쪽 사용률이 0.2 이하 · 지배 사용률 ≤ 1.0'));
+    const spacingFirst=e.sRatio<=e.eRatio;
+    rows.push(row('앵커 최소 간격·연단거리',spacingFirst?e.smin:e.edge,spacingFirst?4*da:6*da,pass.layout,`최소 간격 ${Number.isFinite(e.smin)?e.smin.toFixed(0):'—'} mm ≥ 4da ${4*da} · 목 끝까지 ${e.edge.toFixed(0)} mm ≥ 6da ${6*da} (너트 조임 가정)`));
+    rows.push(row('앵커 묻힘깊이 공간',e.hefInput,e.depth,pass.depth,'목 상단부터 푸팅 하부 피복까지의 깊이 · mm'));
     return rows;
   }
-  function checks(p,g,l){
-    return [...postChecks(p,g,l),...anchorChecks(p,g,l),pending('베이스플레이트 · 용접 · 앵커 측면파열·전단 콘크리트 파괴','별도 검토','플레이트 두께·휨, 용접, 측면파열, 전단 콘크리트 파괴·프라이아웃, 앵커 보강철근')];
+  // KS D 3503 SS275 / KS D 3515 SM355 yield strength by plate thickness.
+  const grades={SS275:[[16,275],[40,265],[100,245]],SM355:[[16,355],[40,345],[75,335],[100,325]]};
+  function plateFy(grade,t){const table=grades[grade]||grades.SS275;return (table.find(([limit])=>t<=limit)||table[table.length-1])[1];}
+  const plateThicknesses=[10,12,14,16,19,20,22,25,28,30,32,35,38,40,45,50,55,60,65,70,75,80,90,100];
+  // Column extent along each plate direction for the critical bending line (AISC Design Guide 1: 0.95d, 0.8bf, 0.8D).
+  function columnLines(p){
+    if(p.columnShape==='circle')return {front:0.8*p.columnDiameter,side:0.8*p.columnDiameter};
+    if(p.columnShape==='h')return {front:0.95*p.columnDepth,side:0.8*p.columnWidth};
+    return {front:0.95*p.columnDepth,side:0.95*p.columnWidth};
   }
-  const api={E,threadPitch,anchorPositions,section,flexure,shear,compression,actions,postChecks,anchorChecks,checks};
+  // Rectangular plate bending per unit width (N·mm/mm): grout bearing on the compression side and anchor
+  // tension on the tension side, for front wind (along plate W) and side wind (along plate L).
+  function plateEval(p,g,a,f=anchorForces(p,a)){
+    if(f.line)return {line:true};
+    const lines=columnLines(p),area=g.neck?g.cL*g.cW:g.L*g.W,fp=0.65*0.85*p.fck*Math.min(2,Math.sqrt(area/(p.plateL*p.plateW)));
+    const direction=(moment,len,wid,line,axis,sum)=>{
+      const bearingT=f.pos.map(q=>(sum>0?moment*1e6*q[axis]/sum:0)-a.pMax*1000/f.n);
+      const C=bearingT.reduce((t,v)=>t+Math.max(0,v),0)+a.pMax*1000,Y=C/(fp*wid),m=(len-line)/2;
+      const Mc=m<=0?0:Y>=m?fp*m*m/2:fp*Y*(m-Y/2);
+      const cmax=Math.max(...f.pos.map(q=>q[axis])),outer=f.pos.map((q,i)=>Math.abs(q[axis]-cmax)<1e-6?i:-1).filter(i=>i>=0);
+      const Trow=outer.reduce((t,i)=>t+Math.max(0,f.tension[i]),0),x=cmax-line/2,beff=Math.min(wid,outer.length*2*x);
+      const Mt=x>0&&Trow>0?Trow*x/beff:0;
+      return {M:Math.max(Mc,Mt),side:Mc>=Mt?'지압':'앵커 인장',Y,half:len/2,C,m,x};
+    };
+    const front=direction(a.mFront,p.plateW,p.plateL,lines.front,1,f.sy),side=direction(a.mSide,p.plateL,p.plateW,lines.side,0,f.sx);
+    const governs=front.M>=side.M?{...front,dir:'정면'}:{...side,dir:'측면'},bearing=front.Y/front.half>=side.Y/side.half?{...front,dir:'정면'}:{...side,dir:'측면'};
+    const required=t=>Math.sqrt(4*governs.M/(phiB*plateFy(p.plateGrade,t)));
+    return {fp,governs,bearing,required,bearingOK:bearing.Y<=bearing.half+1e-9};
+  }
+  function plateChecks(p,g,l){
+    if(!p.anchorCount)return [pending('베이스플레이트 두께','미검토 · 앵커 없음','앵커를 입력하면 플레이트 휨을 검토합니다.')];
+    if(p.plateShape==='circle')return [pending('베이스플레이트 두께','별도 검토','원형 플레이트의 휨은 이 예비 검토 범위 밖입니다. 사각 플레이트로 바꾸거나 별도 검토하세요.')];
+    if(p.anchorCount%4!==0)return [];
+    if(!(p.plateThickness>0))return [pending('베이스플레이트 두께','미검토 · 입력 필요','플레이트 두께를 입력하면 그라우트 지압과 앵커 인장에 의한 휨을 검토합니다.')];
+    const e=plateEval(p,g,actions(p,g,l));if(e.line)return [];
+    const t=p.plateThickness,Fy=plateFy(p.plateGrade,t),need=e.required(t),b=e.bearing,c=e.governs;
+    return [
+      row('베이스플레이트 두께 (휨)',need,t,need<=t+1e-9,`${p.plateGrade} Fy ${Fy} MPa · ${c.dir} 방향 ${c.side} 측 지배 · 필요 t = √(4Mu/0.9Fy) · mm · 기둥 면 0.95d·0.8bf·0.8D 기준(AISC Design Guide 1)`),
+      row('베이스플레이트 지압 길이',b.Y,b.half,e.bearingOK,`${b.dir} 방향 압축 합력 ${(b.C/1000).toFixed(1)} kN · fp,max ${e.fp.toFixed(2)} MPa (0.65×0.85fck√(A2/A1)) · 지압 길이가 플레이트 절반 이내 · mm`)
+    ];
+  }
+  // Automatic base plate and anchor selection for one post. Starting from the entered neck, the neck grows
+  // in 100 mm steps until a layout passes; within that neck the lightest plate + anchor steel wins.
+  function design(p,g,l,{maxNeck}){
+    const s=section(p);
+    if(s.missing)return {found:false,reason:`${s.missing} · 자동 산정은 기둥 단면과 두께가 필요합니다.`};
+    const a=actions(p,g,l),lines=columnLines(p),width=p.columnShape==='circle'?p.columnDiameter:Math.max(p.columnWidth,p.columnDepth);
+    let evaluated=0;
+    for(let k=0;;k++){
+      const cL=g.cL+100*k,cW=g.cW+100*k;if(Math.max(cL,cW)>maxNeck+1e-9)break;
+      const neck={...g,cL,cW},depth=(g.neck?g.cH:0)+g.H-p.cover;let best=null;
+      for(const da of [20,24,30,36,42])for(const count of [4,8,12]){
+        // Plate edge to bolt centre ≥ 2da (≥ 60 mm); bolt centre to column face ≥ 1.5da for nut and wrench clearance.
+        const edge=Math.ceil(Math.max(2*da,60)/5)*5,start=Math.ceil((width+2*edge+3*da)/50)*50;
+        for(let N=start;N<=Math.min(cL,cW);N+=50){
+          const q={...p,plateShape:'rect',plateL:N,plateW:N,anchorCount:count,anchorDiameter:da,anchorEdge:edge,cL,cW};
+          const f=anchorForces(q,a);if(f.line)continue;
+          const plate=plateEval(q,neck,a,f);if(!plate.bearingOK)continue;
+          const t=plateThicknesses.find(t=>plate.required(t)<=t+1e-9);if(!t)continue;
+          for(let hef=250;hef<=Math.min(depth,1500)+1e-9;hef+=50){
+            evaluated++;const e=anchorEval({...q,anchorEmbed:hef},neck,a,f);
+            if(!e.ok)continue;
+            const mass=7.85e-6*(N*N*t+count*Math.PI/4*da*da*(hef+t+p.groutThickness+3*da));
+            if(!best||mass<best.mass-1e-9||Math.abs(mass-best.mass)<=1e-9&&count<best.values.anchorCount)best={mass,values:{plateShape:'rect',plateL:N,plateW:N,plateThickness:t,anchorCount:count,anchorDiameter:da,anchorEdge:edge,anchorEmbed:hef,cL,cW}};
+            break;
+          }
+        }
+      }
+      if(best)return {found:true,...best,neckGrown:k>0,from:{cL:g.cL,cW:g.cW},evaluated};
+    }
+    return {found:false,evaluated,reason:`목을 ${maxNeck} mm까지 키워도 통과하는 플레이트·앵커 조합이 없습니다. 기둥 단면·풍하중을 확인하거나 앵커 보강철근 설계를 검토하세요.`};
+  }
+  function checks(p,g,l){
+    return [...postChecks(p,g,l),...anchorChecks(p,g,l),...plateChecks(p,g,l),pending('용접 · 앵커 측면파열·전단 콘크리트 파괴','별도 검토','기둥–플레이트 용접, 측면파열, 전단 콘크리트 파괴·프라이아웃, 앵커 보강철근')];
+  }
+  const api={E,threadPitch,anchorPositions,section,flexure,shear,compression,actions,anchorForces,anchorEval,postChecks,anchorChecks,plateFy,plateEval,plateChecks,design,checks};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FoundationSteel=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

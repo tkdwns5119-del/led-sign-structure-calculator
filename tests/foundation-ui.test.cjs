@@ -510,3 +510,14 @@ test('steel post and anchor inputs appear with their section and feed the review
   assert.ok(r.checks.some(c=>c.group==='steel'&&c.label.startsWith('지주 휨')&&c.pass!==null));assert.match(h.el('checks').innerHTML,/앵커 콘크리트 콘 파괴/);
   h.change('anchorCount',0);for(const key of ['anchorEmbed','anchorHead','anchorFy','anchorFu'])assert.equal(h.fieldHidden(key),true);
 });
+
+test('automatic connection fills and locks the plate and anchor fields while the entered neck stays the minimum',()=>{
+  const h=harness(true);h.change('columnShape','circle');h.change('columnDiameter',300);h.change('columnThickness',8);h.change('connectionMode','auto');
+  const r=h.api.getResult(),v=r.connection.values;assert.equal(r.connection.found,true);
+  for(const key of ['plateL','plateW','plateThickness','anchorCount','anchorDiameter','anchorEdge','anchorEmbed']){assert.equal(Number(h.el(key).value),v[key]);assert.equal(h.el(key).disabled,true);}
+  assert.equal(h.el('plateShape').disabled,true);assert.equal(h.fieldHidden('anchorEmbed'),false);
+  assert.match(h.el('connection-summary').textContent,/자동 산정: PL 700×700×28 · 4-M20 hef 500 · 목 800×800 → 900×900 mm/);
+  assert.equal(Number(h.el('cL').value),800);assert.equal(h.api.snapshot().project.items[0].p.cL,800);assert.equal(r.g.cL,900);
+  assert.match(h.el('boq').innerHTML,/베이스플레이트 PL 700×700×28/);
+  h.change('connectionMode','manual');assert.equal(h.el('plateL').disabled,false);assert.equal(h.api.getResult().p.plateL,700);
+});

@@ -33,7 +33,10 @@
         if(gap+1e-9<p.anchorDiameter/2)throw new Error('앵커 볼트가 기둥 단면과 겹칩니다. 플레이트 치수·앵커 배치 또는 기둥 크기를 수정하세요.');
       }
     }
-    return {mounts,volume,area,plateLabel,plateL,plateW,column:profile,round,boltCircleDiameter:round&&p.anchorCount?p.plateDiameter-2*p.anchorEdge:null,liters,groutBags,anchors,templates,positions,groundRods:p.groundRods*p.qty,elpLength:p.elpLength*p.qty};
+    // Steel plate weight (7.85 t/m³) when a rectangular plate thickness is set; bolt holes are not deducted.
+    const plates=mounts*p.qty,plateKg=!round&&p.plateThickness>0?p.plateL*p.plateW*p.plateThickness*7.85e-6:0;
+    const plate=plateKg?{name:`베이스플레이트 PL ${p.plateL}×${p.plateW}×${p.plateThickness} (${p.plateGrade})`,count:plates,each:plateKg,kg:plateKg*plates,formula:`${plates}장 × ${plateKg.toFixed(1)} kg · 강판 7.85 t/m³ · 앵커 구멍 공제 없음`}:null;
+    return {plate,mounts,volume,area,plateLabel,plateL,plateW,column:profile,round,boltCircleDiameter:round&&p.anchorCount?p.plateDiameter-2*p.anchorEdge:null,liters,groutBags,anchors,templates,positions,groundRods:p.groundRods*p.qty,elpLength:p.elpLength*p.qty};
   }
   function calculate(r,rawPrices={}){
     const prices={...defaultPrices,...rawPrices};

@@ -28,7 +28,7 @@
     ld:500,dowelEmbed:500,dowelTail:300,rebarWaste:3,concWaste:1,
     ow:100,lean:100,stone:200,work:300,slope:0,soilL:1.2,soilC:1,oldRatio:95,
     columnShape:'schematic',columnDiameter:300,columnWidth:150,columnDepth:150,plateShape:'rect',plateDiameter:500,anchorAngle:0,
-    columnThickness:0,columnFlange:0,columnFy:275,
+    columnThickness:0,columnFlange:0,columnFy:275,connectionMode:'manual',plateThickness:0,plateGrade:'SS275',
     anchorCount:8,anchorDiameter:30,anchorEmbed:0,anchorHead:'headed',anchorFy:275,anchorFu:410,plateL:500,plateW:500,anchorEdge:75,groutThickness:40,groutYield:12.5,groutWaste:5,groundRods:2,elpLength:10,vat:10
   };
   const limits = {
@@ -40,7 +40,7 @@
     autoMax:[2000,12000],autoHMax:[500,3000],aspect:[0.5,2],cover:[40,150],neckCover:[30,150],
     spacing:[50,450],maxSpacing:[100,300],neckNX:[2,200,true],neckNY:[2,200,true],tieSpacing:[50,300],ld:[100,3000],dowelEmbed:[100,3000],dowelTail:[0,2000],
     rebarWaste:[0,20],concWaste:[0,10],ow:[0,500],lean:[0,300],stone:[0,1000],work:[0,2000],slope:[0,2],soilL:[1,2],soilC:[0.5,1.2],oldRatio:[0,300],
-    columnDiameter:[50,3000],columnWidth:[50,3000],columnDepth:[50,3000],columnThickness:[0,100],columnFlange:[0,100],columnFy:[200,700],anchorEmbed:[0,3000],anchorFy:[200,900],anchorFu:[300,1200],plateDiameter:[100,3000],anchorAngle:[0,360],
+    columnDiameter:[50,3000],columnWidth:[50,3000],columnDepth:[50,3000],columnThickness:[0,100],plateThickness:[0,100],columnFlange:[0,100],columnFy:[200,700],anchorEmbed:[0,3000],anchorFy:[200,900],anchorFu:[300,1200],plateDiameter:[100,3000],anchorAngle:[0,360],
     anchorCount:[0,32,true],anchorDiameter:[16,64],plateL:[100,3000],plateW:[100,3000],anchorEdge:[20,300],groutThickness:[0,150],groutYield:[5,25],groutWaste:[0,30],groundRods:[0,20,true],elpLength:[0,1000],vat:[0,30]
   };
   const EPS=1e-8;
@@ -52,6 +52,7 @@
     if(!Object.hasOwn(types,p.type)||!['shared','repeat'].includes(p.installMode)||!['auto','manual'].includes(p.mode)||!['auto','manual'].includes(p.rebarMode)||!['pressure','velocity','regional'].includes(p.windMode)||!['manual','linked'].includes(p.sideMode)||!Object.hasOwn(Wind.exposures,p.exposure)||p.windPoint&&!Wind.getPoint(p.windPoint))throw new Error('배치 방식, 기초 형식 또는 풍하중 계산 모드를 확인하세요.');
     for(const k of ['bar','neckBar','tieBar'])if(!Object.hasOwn(bars,p[k]))throw new Error('철근 규격을 확인하세요.');
     if(!['schematic','rect','circle','h'].includes(p.columnShape))throw new Error('columnShape: 기둥 형상을 확인하세요.');
+    if(!['manual','auto'].includes(p.connectionMode)||!['SS275','SM355'].includes(p.plateGrade))throw new Error('기둥 하부 연결 산정 방식 또는 플레이트 강종을 확인하세요.');
     if(!['headed','hooked'].includes(p.anchorHead))throw new Error('anchorHead: 앵커 정착 형태를 확인하세요.');
     if(p.anchorFu<p.anchorFy)throw new Error('anchorFu: 앵커 인장강도는 항복강도 이상이어야 합니다.');
     Steel.section(p);
@@ -93,13 +94,18 @@
     const wetNeck=g.cL*g.cW*g.n/1e6*Math.max(0,g.embed-p.waterDepth);
     return {footing,neck,concrete:footing+neck,orderedConcrete:(footing+neck)*(1+p.concWaste/100),formFoot,formNeck,form:formFoot+formNeck,subL,subW,lean,stone,depth,botL,botW,topL,topW,excavation,buried,backfill,surplus,borrow,buoyancy:(wetFoot+wetNeck)*9.81};
   }
-  function loads(p,g,q) {
+  // Wind and above-ground weight acting on the sign; independent of the foundation dimensions.
+  function signActions(p) {
     const area=p.signW*p.signH/1e6,sideArea=p.signDepth*p.signH/1e6;
     const windDetail=p.windMode==='regional'?Wind.regional({basicWind:p.basicWind,height:p.bottom+p.signH/1000,exposure:p.exposure,topography:p.topography,importance:p.importance,direction:p.direction,cf:p.cf,gust:p.gust}):null;
     const pressure=windDetail?windDetail.pressure:p.windMode==='pressure'?p.pressure:0.5*1.225*p.velocity*p.velocity*p.cf*p.gust/1000;
     const sidePressure=p.sideMode==='linked'?pressure:p.sidePressure;
     const front=area*pressure,side=sideArea*sidePressure,center=p.bottom+p.signH/2000;
     const panelKg=area*p.panelKgM2,upper=(panelKg+p.postKg+p.extraKg)*9.80665/1000;
+    return {area,sideArea,windDetail,pressure,sidePressure,front,side,center,panelKg,upper};
+  }
+  function loads(p,g,q) {
+    const {area,sideArea,windDetail,pressure,sidePressure,front,side,center,panelKg,upper}=signActions(p);
     const dead=q.concrete*p.gammaC+upper;
     const mx=front*(center+g.depth)+p.extraForce*(p.extraForceZ+g.depth);
     const my=side*(center+g.depth);
@@ -256,11 +262,25 @@
     const footingOK=canScreen(p)&&c.filter(x=>x.pass!==null&&x.group!=='steel').every(x=>x.pass);
     return {g,q,l,r,checks:c,footingOK,screenOK:footingOK&&c.filter(x=>x.group==='steel'&&x.pass!==null).every(x=>x.pass)};
   }
+  // Automatic base plate, anchors and (if needed) a larger neck for the single-post footing.
+  const connectionCache=new Map();
+  function designConnection(p,minH){
+    const t=types[p.type],H=p.mode==='auto'?minH:p.H;
+    const maxNeck=Math.min(3000,p.mode==='auto'?p.autoMax-2*(p.ld+p.cover):Math.min(p.L,p.W));
+    const key=JSON.stringify([p,H,maxNeck]);if(connectionCache.has(key))return connectionCache.get(key);
+    if(connectionCache.size>40)connectionCache.clear();
+    const design=Steel.design(p,{above:t.neck?p.above:0,neck:t.neck,cL:p.cL,cW:p.cW,cH:p.cH,H,L:p.L,W:p.W},signActions(p),{maxNeck});
+    connectionCache.set(key,design);return design;
+  }
   function calculate(raw) {
-    const p=validate(raw);let result,search=null;
+    let p=validate(raw),result,search=null,connection=null;
+    const minH=Math.ceil(Math.max(1500,p.dowelEmbed+p.cover+64)/100)*100;
+    if(p.connectionMode==='auto'&&canScreen(p)){
+      connection=designConnection(p,minH);
+      if(connection.found)p={...p,...connection.values};
+    }
     if(p.mode==='auto') {
       let best=null,count=0;
-      const minH=Math.ceil(Math.max(1500,p.dowelEmbed+p.cover+64)/100)*100;
       for(let H=minH;H<=p.autoHMax+EPS;H+=100) {
         for(let W=Math.ceil(Math.max(1500,p.cW+2*(p.ld+p.cover), (p.cL+2*(p.ld+p.cover))/p.aspect)/100)*100;W<=p.autoMax+EPS;W+=100) {
           const L=Math.ceil(W*p.aspect/100)*100;if(L>p.autoMax)continue;
@@ -313,13 +333,15 @@
       if(quantities.mergedExcavation)warnings.push('같은 높이·같은 치수로 X방향에 나란히 놓는 기초의 겹치는 터파기 영역을 중복 제거했습니다. 각 기초의 1개 물량과 전체 토공 물량은 단순 배수와 다를 수 있습니다.');
     }
     const steelFailed=canScreen(p)&&result.checks.some(c=>c.group==='steel'&&c.pass===false);
+    if(connection&&!connection.found)warnings.unshift(`기둥 하부 연결 자동 산정 실패: ${connection.reason} 화면 값은 입력값입니다.`);
+    else if(connection?.neckGrown)warnings.unshift(`앵커 콘크리트 파괴를 만족하도록 목을 ${connection.from.cL}×${connection.from.cW}에서 ${p.cL}×${p.cW} mm로 키웠습니다. 기초 치수와 목 철근은 키운 목 기준입니다.`);
     if(steelFailed)warnings.unshift(`지주·앵커 검토 미충족: ${result.checks.filter(c=>c.group==='steel'&&c.pass===false).map(c=>c.label).join(', ')}. 기초 치수를 키워도 해결되지 않습니다. 기둥 단면·두께·강도 또는 앵커 개수·직경·묻힘깊이를 수정하세요.`);
     if(search&&!search.found)warnings.unshift('지정한 탐색 한도 내에서 후보를 찾지 못했습니다. 화면의 치수는 수동 입력값이며 자동 추천 결과가 아닙니다.');
     if(canScreen(p)&&(l.kern>1||l.kernU>1))warnings.unshift('저면 일부에 인장 반력이 계산됩니다. 표시 qmax는 전면 접지 가정값이며 유효 지반응력이 아닙니다. 휨·전단 예비 검토는 미충족 처리됩니다.');
     if(p.columnShape!=='schematic'||p.plateShape==='circle')warnings.push('기둥 단면과 베이스플레이트 모양은 도면·그라우트 물량·앵커의 기하 배치에 반영합니다. 기둥 자중은 지주·프레임 총중량에 직접 입력하고 기둥 자체 풍하중은 추가 하중으로 반영하세요. 강재 기둥과 앵커는 두께·묻힘깊이를 입력하면 예비 검토하며, 베이스플레이트·용접·앵커 측면파열·전단 콘크리트 파괴와 너트·공구 여유는 별도 검토 대상입니다. 콘크리트 목은 사각 단면입니다.');
     if(p.cover<75)warnings.push('푸팅 피복이 75mm 미만입니다. 지반 접촉·버림·노출 조건에 따른 요구 피복을 확인하세요.');
     if(r.neck&&(r.neck.rho<0.01||r.neck.rho>0.04))warnings.push('목 주근 비율이 초안 검토범위 1~4%를 벗어납니다.');
-    return {p,...result,search,boq,warnings,supports,quantities,total:{foundations:N,posts:supports.total,concrete:quantities.concrete,orderedConcrete:quantities.orderedConcrete,form:quantities.form,excavation:quantities.excavation,rebarNet:r.net*N,rebarGross:r.gross*N},oldRebar:q.concrete*p.oldRatio*(1+p.rebarWaste/100)*N};
+    return {p,...result,search,connection,boq,warnings,supports,quantities,total:{foundations:N,posts:supports.total,concrete:quantities.concrete,orderedConcrete:quantities.orderedConcrete,form:quantities.form,excavation:quantities.excavation,rebarNet:r.net*N,rebarGross:r.gross*N},oldRebar:q.concrete*p.oldRatio*(1+p.rebarWaste/100)*N};
   }
   const api={bars,types,defaults,limits,validate,sharedSupports,canScreen,supportCounts,geometry,earth,loads,layout,flexCapacity,calculate};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FoundationEngine=api;

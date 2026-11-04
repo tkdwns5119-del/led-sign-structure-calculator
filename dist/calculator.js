@@ -3,8 +3,8 @@
   const defaults={width:4000,height:2000,frames:1,face:50,sectionDepth:50,unitWeight:3.34,vertical:3,horizontal:1,equipment:0,planes:1,depth:600,sideVertical:0,sideHorizontal:1,stockLength:6000,kerf:3,endTrim:0,spliceAllowance:0};
   const limits={width:[100,100000,1],height:[100,100000,1],frames:[1,1000,1],face:[1,1000],sectionDepth:[1,1000],unitWeight:[0.001,10000],vertical:[0,100,1],horizontal:[0,100,1],equipment:[0,1000000],planes:[1,2,1],depth:[1,100000],sideVertical:[0,100,1],sideHorizontal:[0,100,1],stockLength:[100,100000],kerf:[0,20],endTrim:[0,1000]};
   const labels={width:'가로',height:'세로',frames:'제작 수량',face:'부재 정면 폭 b',sectionDepth:'부재 깊이 방향 폭 d',unitWeight:'단위중량',vertical:'세로 보강재',horizontal:'가로 보강재 열',equipment:'전광판·기타 중량',planes:'프레임 구성',depth:'전체 깊이',sideVertical:'측면 세로 보강재',sideHorizontal:'측면 가로 보강재 열',stockLength:'원자재 길이',kerf:'절단 톱날 손실',endTrim:'양끝 정리 여유'};
-  const sources={tube:{label:'DS GROUP 각관 규격표',url:'https://dsnp.kr/steel.html'},h100:{label:'현대제철 Products Guide · KS/JIS 90',url:'https://www.hyundai-steel.com/kr/down/2017_ProductGuide_Part2.pdf'},h150:{label:'동국제강 제품 가이드',url:'https://www.dongkuk.com/upload/pdf/product_guide2.pdf'},h200:{label:'하피스 형강 제품 자료',url:'https://www.hapis.co.kr/hapis/resources/upload_file/C101/2025/04/41cf68bb402746c589ad6e7db69918ae_0.pdf'}};
-  const families={square:'사각관',rect:'직사각관',hbeam:'H형강',custom:'직접 입력'};
+  const sources={tube:{label:'DS GROUP 각관 규격표',url:'https://dsnp.kr/steel.html'},h100:{label:'현대제철 Products Guide · KS/JIS 90',url:'https://www.hyundai-steel.com/kr/down/2017_ProductGuide_Part2.pdf'},h150:{label:'동국제강 제품 가이드',url:'https://www.dongkuk.com/upload/pdf/product_guide2.pdf'},h200:{label:'하피스 형강 제품 자료',url:'https://www.hapis.co.kr/hapis/resources/upload_file/C101/2025/04/41cf68bb402746c589ad6e7db69918ae_0.pdf'},pipe:{label:'KS D 3566 일반구조용 탄소강관 · 단위중량 W=0.02466t(D−t)',url:'https://standard.go.kr/'}};
+  const families={square:'사각관',rect:'직사각관',hbeam:'H형강',pipe:'원형 강관',custom:'직접 입력'};
   const presets={
     '40':{family:'square',face:40,sectionDepth:40,thickness:2.3,unitWeight:2.62,label:'40 × 40 × 2.3t',source:'tube'},
     '50':{family:'square',face:50,sectionDepth:50,thickness:2.3,unitWeight:3.34,label:'50 × 50 × 2.3t',source:'tube'},
@@ -16,7 +16,13 @@
     'r150x100':{family:'rect',face:100,sectionDepth:150,thickness:3.2,unitWeight:12,label:'150 × 100 × 3.2t',source:'tube'},
     'h100':{family:'hbeam',face:100,sectionDepth:100,web:6,flange:8,unitWeight:17.2,label:'H 100 × 100 × 6 × 8',source:'h100'},
     'h150':{family:'hbeam',face:150,sectionDepth:150,web:7,flange:10,unitWeight:31.5,label:'H 150 × 150 × 7 × 10',source:'h150'},
-    'h200x100':{family:'hbeam',face:100,sectionDepth:200,web:5.5,flange:8,unitWeight:21.3,label:'H 200 × 100 × 5.5 × 8',source:'h200'}
+    'h200x100':{family:'hbeam',face:100,sectionDepth:200,web:5.5,flange:8,unitWeight:21.3,label:'H 200 × 100 × 5.5 × 8',source:'h200'},
+    'p114_3':{family:'pipe',face:114.3,sectionDepth:114.3,thickness:4.5,unitWeight:12.18,label:'Ø114.3 × 4.5t',source:'pipe'},
+    'p139_8':{family:'pipe',face:139.8,sectionDepth:139.8,thickness:4.5,unitWeight:15.01,label:'Ø139.8 × 4.5t',source:'pipe'},
+    'p165_2':{family:'pipe',face:165.2,sectionDepth:165.2,thickness:5,unitWeight:19.75,label:'Ø165.2 × 5t',source:'pipe'},
+    'p216_3':{family:'pipe',face:216.3,sectionDepth:216.3,thickness:5.8,unitWeight:30.11,label:'Ø216.3 × 5.8t',source:'pipe'},
+    'p267_4':{family:'pipe',face:267.4,sectionDepth:267.4,thickness:6.6,unitWeight:42.45,label:'Ø267.4 × 6.6t',source:'pipe'},
+    'p318_5':{family:'pipe',face:318.5,sectionDepth:318.5,thickness:6.9,unitWeight:53.02,label:'Ø318.5 × 6.9t',source:'pipe'}
   };
   function presetValues(section,rotation=0){const p=presets[section];if(!p||![0,1].includes(rotation))throw new Error('부재 규격과 방향을 확인하세요.');return {face:rotation?p.sectionDepth:p.face,sectionDepth:rotation?p.face:p.sectionDepth,unitWeight:p.unitWeight};}
   const EPS=1e-7;

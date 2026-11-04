@@ -51,8 +51,9 @@
     ['columnShape','강재 기둥 단면','',[['schematic','단면 미입력 · 개념 표시'],['circle','원형 강관'],['rect','각형 강관'],['h','H형강 · 웹이 정면 풍향']],true],
     ['columnDiameter','기둥 외경 Ø','mm',10],['columnWidth','기둥 가로 · H형강 플랜지 폭 B','mm',10],['columnDepth','기둥 세로 · H형강 춤 H','mm',10],
     ['columnThickness','강관 두께 t · H형강 웹 tw (0=검토 안 함)','mm',0.5],['columnFlange','H형강 플랜지 두께 tf','mm',0.5],['columnFy','지주 항복강도 Fy','MPa',5],
+    ['connectionMode','플레이트·앵커 정하기','',[['manual','직접 입력 후 검토'],['auto','기둥 단면에 맞춰 자동 산정']],true],
     ['plateShape','베이스플레이트 모양','',[['rect','사각 플레이트'],['circle','원형 플레이트']],true],
-    ...take('accessory-fields',['plateL','plateW']),['plateDiameter','플레이트 지름 Ø','mm',50],
+    ...take('accessory-fields',['plateL','plateW']),['plateDiameter','플레이트 지름 Ø','mm',50],['plateThickness','플레이트 두께 (0=검토 안 함)','mm',1],['plateGrade','플레이트 강종','',[['SS275','SS275'],['SM355','SM355']],true],
     ...take('accessory-fields',['anchorCount','anchorDiameter','anchorEdge']),['anchorAngle','첫 앵커 배치 각도','°',5],
     ['anchorEmbed','앵커 묻힘깊이 hef (0=검토 안 함)','mm',10],['anchorHead','앵커 정착 형태','',[['headed','머리·너트 정착'],['hooked','J·L형 갈고리']],true],['anchorFy','앵커 항복강도','MPa',5],['anchorFu','앵커 인장강도','MPa',5]
   ];
@@ -76,12 +77,16 @@
   }).join('');
   function fill(p){for(const [k]of all)$(k).value=p[k];}
   function read(){const p={};for(const [k,,,step]of all){const v=$(k).value;p[k]=typeof E.defaults[k]==='number'?(v.trim()===''?NaN:Number(v)):v;}return p;}
+  const connectionKeys=['plateShape','plateL','plateW','plateThickness','anchorCount','anchorDiameter','anchorEdge','anchorEmbed'];
   function visibility(p){
     for(const k of ['columnDiameter'])document.querySelector(`[data-field="${k}"]`).hidden=p.columnShape!=='circle';
     for(const k of ['columnWidth','columnDepth'])document.querySelector(`[data-field="${k}"]`).hidden=!['rect','h'].includes(p.columnShape);
     for(const k of ['columnThickness','columnFy'])document.querySelector(`[data-field="${k}"]`).hidden=p.columnShape==='schematic';
     document.querySelector('[data-field="columnFlange"]').hidden=p.columnShape!=='h';
-    for(const k of ['anchorEmbed','anchorHead','anchorFy','anchorFu'])document.querySelector(`[data-field="${k}"]`).hidden=!p.anchorCount;
+    const autoConnection=p.connectionMode==='auto'&&E.canScreen(p);$('connectionMode').options[1].disabled=!E.canScreen(p);
+    for(const k of ['anchorEmbed','anchorHead','anchorFy','anchorFu'])document.querySelector(`[data-field="${k}"]`).hidden=!autoConnection&&!p.anchorCount;
+    for(const k of connectionKeys)$(k).disabled=autoConnection;
+    document.querySelector('[data-field="plateThickness"]').hidden=p.plateShape!=='rect'&&!autoConnection;
     for(const k of ['plateL','plateW'])document.querySelector(`[data-field="${k}"]`).hidden=p.plateShape!=='rect';
     document.querySelector('[data-field="plateDiameter"]').hidden=p.plateShape!=='circle';
     document.querySelector('[data-field="anchorAngle"]').hidden=p.plateShape!=='circle'||!p.anchorCount;
@@ -117,16 +122,20 @@
   function recalc(){
     clearTimeout(timer);timer=null;
     const p=read();if(!E.canScreen(p)&&p.mode==='auto'){p.mode='manual';$('mode').value='manual';}
+    if(!E.canScreen(p)&&p.connectionMode==='auto'){p.connectionMode='manual';$('connectionMode').value='manual';}
     visibility(p);$('error').hidden=true;for(const [k]of all)$(k).classList.remove('invalid');
     try {
       result=E.calculate(p);result.estimate=C.calculate(result,prices);$('outputs').classList.remove('stale');for(const id of ['xlsx','csv','drawing','drawing-svg','print'])$(id).disabled=false;
       if(p.mode==='auto'&&result.search.found)for(const k of ['L','W','H'])$(k).value=result.g[k];
+      // Automatic plate and anchors fill their fields; the entered neck stays as the minimum for the next search.
+      if(result.connection?.found){for(const k of connectionKeys)$(k).value=result.p[k];visibility({...p,...result.connection.values});}
+      if(result.connection){const c=result.connection,v=c.values;$('connection-summary').textContent+=c.found?` · 자동 산정: PL ${v.plateL}×${v.plateW}×${v.plateThickness} · ${v.anchorCount}-M${v.anchorDiameter} hef ${v.anchorEmbed}${c.neckGrown?` · 목 ${c.from.cL}×${c.from.cW} → ${v.cL}×${v.cW}`:''} mm`:` · 자동 산정 실패: ${c.reason}`;}
       if(p.rebarMode==='auto'){
         const effective={bar:result.r.code,spacing:result.r.s};
         if(result.r.neck)Object.assign(effective,{neckBar:result.r.neck.bar,neckNX:result.r.neck.nx,neckNY:result.r.neck.ny});
         for(const [key,value]of Object.entries(effective)){$(key).value=value;result.p[key]=value;}
       }
-      project.items[project.active].p={...result.p,L:result.g.L,W:result.g.W,H:result.g.H};
+      project.items[project.active].p={...result.p,L:result.g.L,W:result.g.W,H:result.g.H,cL:p.cL,cW:p.cW};
       render(result);renderWind(result);renderEstimate(result);refreshProject();rateValidity();persist();
     }catch(err){
       result=null;$('error').hidden=false;let msg=err.message;
@@ -262,7 +271,7 @@
     $('rebar-table').innerHTML=rb.rows.map(row=>`<tr><td><b>${row.code}</b> · ${row.name}<small>${row.note}</small></td><td>D${row.bar}</td><td class="number">${row.count}</td><td class="number">${fmt(row.length,1)}</td><td class="number">${fmt(row.kg*p.qty,2)}</td></tr>`).join('');
     $('rebar-total').textContent=`전체 순물량 ${fmt(r.total.rebarNet,2)} kg + 할증 ${p.rebarWaste}% = ${fmt(r.total.rebarGross,2)} kg / 원본 철근비 방식 비교 ${fmt(r.oldRebar,2)} kg`;
     const a=r.estimate.a;
-    r.accessoryBoq=[{name:`앵커 M${p.anchorDiameter}`,unit:'조',total:a.anchors,formula:`지지부 ${a.mounts}개 × ${p.anchorCount}조 × ${p.qty}개소${a.boltCircleDiameter!==null?` / 중심원 Ø${a.boltCircleDiameter} mm`:''}`},{name:'앵커 템플릿 상·하 묶음',unit:'세트',total:a.templates,formula:'1세트 = 상·하 2장'},{name:'그라우트 순체적',unit:'L',total:a.liters,formula:`${a.plateLabel} 면적${a.round?' (πD²/4)':''} × 두께 ${p.groutThickness} mm`},{name:'그라우트 25kg 주문',unit:'포',value:Math.max(0,Math.ceil(a.volume*1000*(1+p.groutWaste/100)/p.groutYield-1e-9)),total:a.groutBags,formula:`수율 ${p.groutYield}L/포 · 손실 ${p.groutWaste}% · 1기초와 현재 기초 종류 전체를 각각 올림`},{name:'접지 동봉·배선',unit:'조',total:a.groundRods,formula:'기초당 입력 조수 × 개소'},{name:'ELP 매설',unit:'m',total:a.elpLength,formula:'기초당 입력 길이 × 개소'}].map(row=>({...row,value:row.value??row.total/p.qty}));
+    r.accessoryBoq=[...(a.plate?[{name:a.plate.name,unit:'kg',total:a.plate.kg,formula:a.plate.formula}]:[]),{name:`앵커 M${p.anchorDiameter}`,unit:'조',total:a.anchors,formula:`지지부 ${a.mounts}개 × ${p.anchorCount}조 × ${p.qty}개소${a.boltCircleDiameter!==null?` / 중심원 Ø${a.boltCircleDiameter} mm`:''}`},{name:'앵커 템플릿 상·하 묶음',unit:'세트',total:a.templates,formula:'1세트 = 상·하 2장'},{name:'그라우트 순체적',unit:'L',total:a.liters,formula:`${a.plateLabel} 면적${a.round?' (πD²/4)':''} × 두께 ${p.groutThickness} mm`},{name:'그라우트 25kg 주문',unit:'포',value:Math.max(0,Math.ceil(a.volume*1000*(1+p.groutWaste/100)/p.groutYield-1e-9)),total:a.groutBags,formula:`수율 ${p.groutYield}L/포 · 손실 ${p.groutWaste}% · 1기초와 현재 기초 종류 전체를 각각 올림`},{name:'접지 동봉·배선',unit:'조',total:a.groundRods,formula:'기초당 입력 조수 × 개소'},{name:'ELP 매설',unit:'m',total:a.elpLength,formula:'기초당 입력 길이 × 개소'}].map(row=>({...row,value:row.value??row.total/p.qty}));
     $('boq').innerHTML=[...r.boq,...r.accessoryBoq].map(row=>`<tr><td>${row.name}</td><td>${row.unit}</td><td class="number">${fmt(row.value,3)}</td><td class="number">${fmt(row.total,3)}</td><td>${row.formula}</td></tr>`).join('');
     $('warnings').innerHTML=r.warnings.map(w=>`<li>${esc(w)}</li>`).join('');
     $('print-inputs').innerHTML=`<div class="print-input-grid">${all.map(([k,label,unit,step])=>{const value=Array.isArray(step)?step.find(x=>String(x[0])===String(p[k]))?.[1]:p[k];return `<div>${label}<br><b>${esc(['L','W','H'].includes(k)?g[k]:value)} ${unit}</b></div>`;}).join('')}</div>`;

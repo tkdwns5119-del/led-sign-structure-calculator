@@ -82,6 +82,13 @@
     const next=keepProduct?r.totalWeight/q-product+r.general.width*r.general.height/1e6*p.panelKgM2:r.totalWeight/q,list=[];
     if(product<=0&&!keepProduct)list.push('구조물에 전광판 제품·캐비닛 중량이 없습니다(0kg). 그대로 적용하면 기초 상부 중량에서 제품 무게가 빠집니다.');
     if(posts<=0)list.push('지주·프레임 중량이 0kg입니다.');
+    // Posts marked in the frame: section notes, count per board and length against the foundation layout.
+    const post=E.postTransfer(r,foundationEngine.limits);list.push(...post.notes);
+    if(post.posts){
+      const supports=foundationEngine.supportCounts(p),perBoard=supports.known?supports.perFoundation*(supports.shared?p.qty:1):null,need=p.bottom*1000-(foundationEngine.types[p.type].neck?p.above:0);
+      if(perBoard!==post.posts.count)list.push(`구조물 지주는 대당 ${post.posts.count}개인데 기초 배치는 ${perBoard===null?'지주 수가 정해지지 않은 형식':`대당 ${perBoard}개`}입니다. 기초 형식·배치 개수를 맞추세요.${post.posts.count>1?' 지주 강재 검토는 중앙 1주 독립기초에서만 계산합니다.':''}`);
+      if(post.posts.length<need-1e-6)list.push(`지주 길이 ${fmt(post.posts.length,0)} mm가 베이스플레이트~화면 하단 ${fmt(need,0)} mm보다 짧습니다. 지주 길이 또는 설치 높이를 확인하세요.`);
+    }
     if(current>0&&next<current*0.5)list.push(`대당 설치 중량이 ${fmt(current,3)} kg → ${fmt(next,3)} kg으로 ${fmt((1-next/current)*100,0)}% 줄어듭니다. 빠진 무게가 없는지 확인하세요.`);
     return {list,next};
   }
@@ -96,7 +103,7 @@
   function prepareTransfer(){
     flush();if(!valid())throw Error('입력 오류를 먼저 수정하세요.');const r=frame.getResult(),f=foundation.snapshot(),item=f.project.items[f.project.active],patch=E.transfer(r,foundationEngine.limits),p=item.p;
     previewSource=massSource(r,patch);const review=massReview?.source===previewSource?massReview:null,q=r.general.quantity,product=r.cabinetWeight/q;
-    $('transfer-preview').innerHTML=`<p><strong>${esc(item.name)}</strong>에 적용합니다. 배치 기초 ${p.qty}개와 현장 조건을 유지합니다.</p><table><thead><tr><th scope="col">항목</th><th scope="col">현재 기초</th><th scope="col">적용 후</th></tr></thead><tbody><tr><th scope="row">크기</th><td>${fmt(p.signW)} × ${fmt(p.signH)} mm</td><td>${fmt(patch.signW)} × ${fmt(patch.signH)} mm</td></tr>${patch.signDepth!==undefined?`<tr><th scope="row">깊이</th><td>${fmt(p.signDepth)} mm</td><td>${fmt(patch.signDepth)} mm</td></tr>`:''}<tr><th scope="row">대당 설치 중량</th><td>${fmt(p.signW*p.signH/1e6*p.panelKgM2+p.postKg+p.extraKg,3)} kg</td><td id="transfer-next-weight"></td></tr></tbody></table><p>구조물 대당 구성: 프레임 ${fmt(r.frameWeight/q,3)} kg · 판재·부속 ${fmt(r.accessoryWeight/q,3)} kg · 제품·캐비닛 ${fmt(product,3)} kg · 기타 장비 ${fmt((r.equipmentWeight-r.cabinetWeight)/q,3)} kg</p>`;
+    $('transfer-preview').innerHTML=`<p><strong>${esc(item.name)}</strong>에 적용합니다. 배치 기초 ${p.qty}개와 현장 조건을 유지합니다.</p><table><thead><tr><th scope="col">항목</th><th scope="col">현재 기초</th><th scope="col">적용 후</th></tr></thead><tbody><tr><th scope="row">크기</th><td>${fmt(p.signW)} × ${fmt(p.signH)} mm</td><td>${fmt(patch.signW)} × ${fmt(patch.signH)} mm</td></tr>${patch.signDepth!==undefined?`<tr><th scope="row">깊이</th><td>${fmt(p.signDepth)} mm</td><td>${fmt(patch.signDepth)} mm</td></tr>`:''}<tr><th scope="row">대당 설치 중량</th><td>${fmt(p.signW*p.signH/1e6*p.panelKgM2+p.postKg+p.extraKg,3)} kg</td><td id="transfer-next-weight"></td></tr><tr><th scope="row">지주 단면</th><td>${esc(estimate.column(p).label)}</td><td>${patch.columnShape?esc(estimate.column({...p,...patch}).label)+(r.posts?` · ${esc(r.posts.names.join(', '))} 대당 ${r.posts.count}개`:''):r.posts?'변경 없음 · 아래 확인 항목 참고':'변경 없음 · 구조물 추가 부재에 「기초 지주」 표시 없음'}</td></tr></tbody></table><p>구조물 대당 구성: 프레임 ${fmt(r.frameWeight/q,3)} kg · 판재·부속 ${fmt(r.accessoryWeight/q,3)} kg · 제품·캐비닛 ${fmt(product,3)} kg · 기타 장비 ${fmt((r.equipmentWeight-r.cabinetWeight)/q,3)} kg</p>`;
     $('keep-product-text').textContent=`제품 무게를 아직 모릅니다 · 기초의 기존 제품 중량(${fmt(p.panelKgM2,1)} kg/m²)을 유지`;
     $('keep-product').checked=product<=0&&link?.keepProduct===true;$('keep-product').closest('label').hidden=product>0;
     for(const key of ['product','posts','accessories'])$('mass-'+key).checked=!!review?.[key];renderTransferState();$('transfer-dialog').showModal();
@@ -104,7 +111,7 @@
   function applyFrame(flags={}){
     flush();if(!valid())throw Error('입력 오류를 먼저 수정하세요.');const r=frame.getResult(),keepProduct=flags.keepProduct===true&&r.cabinetWeight<=0,patch=E.transfer(r,foundationEngine.limits,{keepProduct}),next=copy(foundation.snapshot());Object.assign(next.project.items[next.project.active].p,patch);
     const verified=foundation.validateProject(next);foundation.loadProject(verified);link={source:E.fingerprint(frame.getProject(),patch),active:verified.project.active,itemId:verified.project.items[verified.project.active].id,appliedAt:new Date().toISOString(),keepProduct};massReview={source:massSource(r,patch),product:flags.product===true,posts:flags.posts===true,accessories:flags.accessories===true};candidates=null;
-    showView('foundation');update();saveLocal();const applied=verified.project.items[verified.project.active].p;message(`현재 기초에 ${fmt(r.general.width)} × ${fmt(r.general.height)} mm와 대당 ${fmt(applied.signW*applied.signH/1e6*applied.panelKgM2+applied.postKg+applied.extraKg,3)} kg을 적용했습니다.${keepProduct?' 제품 중량은 기초의 기존 값을 유지했습니다.':''} 중량 구성 확인 상태는 전체 요약에 표시됩니다.`);return copy(patch);
+    showView('foundation');update();saveLocal();const applied=verified.project.items[verified.project.active].p;message(`현재 기초에 ${fmt(r.general.width)} × ${fmt(r.general.height)} mm와 대당 ${fmt(applied.signW*applied.signH/1e6*applied.panelKgM2+applied.postKg+applied.extraKg,3)} kg을 적용했습니다.${keepProduct?' 제품 중량은 기초의 기존 값을 유지했습니다.':''}${patch.columnShape?` 지주 단면 ${estimate.column(applied).label}을 기둥 검토에 반영했습니다. 결과는 기초 검토 표의 지주 항목에서 확인하세요.`:''} 중량 구성 확인 상태는 전체 요약에 표시됩니다.`);return copy(patch);
   }
   function load(raw){
     if(!ready)throw Error('계산기를 준비하고 있습니다.');let verified;
