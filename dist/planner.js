@@ -10,7 +10,7 @@ function material(section='50',id='m1'){
 }
 function face(){return {edges:{left:ref(),right:ref(),top:ref(),bottom:ref()},vertical:[1,2,3].map(i=>reinforcement('v'+i)),horizontal:[reinforcement('h1')]};}
 function side(){return {top:ref(),bottom:ref(),vertical:[],horizontal:[reinforcement('h1')]};}
-function createProject(){return {type:'led-frame-project',version:5,id:'project-'+Date.now(),name:'새 전광판 프로젝트',ui:{inputMode:'simple'},general:{width:4000,height:2000,depth:600,planes:1,quantity:1,extraEquipment:0,verticalDepthTies:true},materials:[material()],front:face(),back:face(),backLinked:true,left:side(),right:side(),rightLinked:true,extras:[],accessories:[],inventory:[],splices:{},cut:{kerf:3,endTrim:0,overlap:0,precision:0,objective:'bars'},cabinet:{enabled:false,width:500,height:500,columns:8,rows:4,weightEach:0},cost:{cutFee:0,spliceFee:0,fabrication:0,painting:0,transport:0,other:0,taxRate:0}};}
+function createProject(){return {type:'led-frame-project',version:5,id:'project-'+Date.now(),name:'새 전광판 프로젝트',ui:{inputMode:'simple'},general:{width:4000,height:2000,depth:600,planes:1,quantity:1,extraEquipment:0,verticalDepthTies:true},materials:[material()],front:face(),back:face(),backLinked:true,left:side(),right:side(),rightLinked:true,extras:[],accessories:[],inventory:[],splices:{},cut:{kerf:3,endTrim:0,overlap:0,precision:0,objective:'bars'},cabinet:{enabled:false,width:500,height:500,columns:8,rows:4,weightEach:0,midHorizontal:false},cost:{cutFee:0,spliceFee:0,fabrication:0,painting:0,transport:0,other:0,taxRate:0}};}
 function number(value,label,min=0,max=1e9,integer=false){if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max||(integer&&!Number.isInteger(value)))throw Error(`${label}: ${min}~${max}${integer?' 정수':''}를 입력하세요.`);return value;}
 function list(value,label,max=200){if(!Array.isArray(value)||value.length>max)throw Error(`${label}: 최대 ${max}개까지 등록할 수 있습니다.`);return value;}
 function identity(value,label){if(typeof value!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(value))throw Error(`${label} 식별값이 올바르지 않습니다.`);return value;}
@@ -53,7 +53,7 @@ function geometry(project,materials){
  for(const key of ['width','height','depth'])number(g[key],key==='width'?'가로':key==='height'?'세로':'깊이',100,100000);
  number(g.quantity,'제작 수량',1,1000,true);number(g.extraEquipment,'기타 장비 중량',0,1e6);if(![1,2].includes(g.planes))throw Error('프레임 구성을 확인하세요.');
  for(const key of ['width','height'])number(c[key],'캐비닛 '+key,1,10000);
- for(const key of ['columns','rows'])number(c[key],'캐비닛 배열',1,101,true);number(c.weightEach,'캐비닛 개당 중량',0,100000);
+ for(const key of ['columns','rows'])number(c[key],'캐비닛 배열',1,101,true);number(c.weightEach,'캐비닛 개당 중량',0,100000);if(c.midHorizontal!==undefined&&typeof c.midHorizontal!=='boolean')throw Error('캐비닛 가운데 가로재 선택을 확인하세요.');
  if(c.enabled){g.width=c.width*c.columns;g.height=c.height*c.rows;if(g.width>100000||g.height>100000)throw Error('캐비닛 전체 치수는 100,000mm 이하여야 합니다.');}
  if(g.verticalDepthTies!==undefined&&typeof g.verticalDepthTies!=='boolean')throw Error('세로 보강 연결재 자동 추가 설정을 확인하세요.');
  g.verticalDepthTies=g.verticalDepthTies!==false;
@@ -234,7 +234,7 @@ function calculate(project,{compare=false}={}){
  return {general,rows,panels,depthConnectors,connectorWarnings,posts,purchase,accessories,costs,frameWeight,accessoryWeight,cabinetWeight,equipmentWeight,totalWeight:frameWeight+accessoryWeight+equipmentWeight,totalLength:rows.reduce((n,r)=>n+r.totalLength,0),totalPieces:rows.reduce((n,r)=>n+r.count,0),roundingRows:rows.filter(r=>Math.abs(r.delta)>EPS),materials:project.materials};
 }
 function migrate(raw){
- if(raw?.version===5){const p=clone(raw),ui=p.ui&&typeof p.ui==='object'&&!Array.isArray(p.ui)?p.ui:{};p.ui={...ui,inputMode:ui.inputMode==='detailed'?'detailed':'simple'};if(p.general&&p.general.verticalDepthTies===undefined)p.general.verticalDepthTies=true;calculate(p);return p;}
+ if(raw?.version===5){const p=clone(raw),ui=p.ui&&typeof p.ui==='object'&&!Array.isArray(p.ui)?p.ui:{};p.ui={...ui,inputMode:ui.inputMode==='detailed'?'detailed':'simple'};if(p.general&&p.general.verticalDepthTies===undefined)p.general.verticalDepthTies=true;if(p.cabinet&&typeof p.cabinet==='object'&&p.cabinet.midHorizontal===undefined)p.cabinet.midHorizontal=!!(p.cabinet.enabled&&p.front?.horizontal?.length);calculate(p);return p;}
  const old=legacy.parseProject(JSON.stringify(raw)),v=old.input,r=legacy.calculate(v),p=createProject();p.name='이전 설정 가져오기';
  p.general={width:v.width,height:v.height,depth:v.depth,planes:v.planes,quantity:v.frames,extraEquipment:v.equipment,verticalDepthTies:false};p.cut={...p.cut,kerf:v.kerf,endTrim:v.endTrim,overlap:v.spliceAllowance};p.materials=[];
  const mapping=new Map(),get=profile=>{
@@ -249,8 +249,10 @@ function migrate(raw){
  calculate(p);return p;
 }
 function parse(textInput){let raw;try{raw=JSON.parse(textInput);}catch{throw Error('올바른 JSON 파일이 아닙니다.');}return migrate(raw);}
-function cabinetGrid(p){const c=p.cabinet;const m=p.front.edges.left.materialId;p.front.vertical=Array.from({length:c.columns-1},(_,i)=>reinforcement('v'+(i+1),m,c.width*(i+1)));p.front.horizontal=Array.from({length:c.rows-1},(_,i)=>reinforcement('h'+(i+1),m,c.height*(i+1)));if(!p.backLinked){p.back.vertical=clone(p.front.vertical);p.back.horizontal=clone(p.front.horizontal);}return p;}
+// Cabinets hang from the top and bottom chords; middle horizontals on row joints are optional (cabinet.midHorizontal).
+function cabinetHorizontal(p){const c=p.cabinet,m=p.front.edges.left.materialId;p.front.horizontal=c.midHorizontal?Array.from({length:c.rows-1},(_,i)=>reinforcement('h'+(i+1),m,c.height*(i+1))):[];if(!p.backLinked)p.back.horizontal=clone(p.front.horizontal);return p;}
+function cabinetGrid(p){const c=p.cabinet;const m=p.front.edges.left.materialId;p.front.vertical=Array.from({length:c.columns-1},(_,i)=>reinforcement('v'+(i+1),m,c.width*(i+1)));if(!p.backLinked)p.back.vertical=clone(p.front.vertical);return cabinetHorizontal(p);}
 function summary(r){return {quantity:r.general.quantity,weight:r.totalWeight,purchaseCount:r.purchase.purchaseCount,cost:r.costs.total,length:r.totalLength};}
-const api={legacy,clone,ref,reinforcement,material,face,side,createProject,calculate,parse,migrate,cabinetGrid,summary,planMaterial,segmentPlan,packPattern};
+const api={legacy,clone,ref,reinforcement,material,face,side,createProject,calculate,parse,migrate,cabinetGrid,cabinetHorizontal,summary,planMaterial,segmentPlan,packPattern};
 root.FramePlanner=api;if(typeof module==='object')module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);
