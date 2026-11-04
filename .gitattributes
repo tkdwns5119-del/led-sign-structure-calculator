@@ -2,4 +2,6 @@
 * text=auto eol=lf
 *.png binary
 *.pdf binary
-*.dxf text eol=lf
+# CAD and Excel exports keep their CRLF bytes exactly as generated.
+*.dxf -text
+*.csv -text
