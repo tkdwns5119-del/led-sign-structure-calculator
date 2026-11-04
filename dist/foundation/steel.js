@@ -87,12 +87,14 @@
     return {Pn:Fcr*s.A,slender};
   }
   // Post-base actions: base plate on the neck top; one post per foundation (single T type).
+  // Factored actions on one post. l.post (from the engine) splits a board over several posts: each takes
+  // its share k of wind, weight and shear, plus the push–pull axial force ±ΔN from the side moment.
   function actions(p,g,l){
     const base=g.above/1000,length=p.bottom+p.signH/1000-base,arm=Math.max(0,l.center-base),extraArm=Math.max(0,p.extraForceZ-base);
-    const wf=p.windFactor,df=p.deadFactor;
-    return {base,length,arm,extraArm,
-      mFront:wf*(l.front*arm+p.extraForce*extraArm)+df*l.upper*Math.abs(p.eccY),mSide:wf*l.side*arm+df*l.upper*Math.abs(p.eccX),
-      vFront:wf*(l.front+p.extraForce),vSide:wf*l.side,pMax:df*l.upper,pMin:p.stabilize*l.upper};
+    const wf=p.windFactor,df=p.deadFactor,s=l.post||{n:1,share:1,dNw:0,dNd:0},k=s.share,front=l.front*k,side=l.side*k,upper=l.upper*k,extra=p.extraForce*k;
+    return {base,length,arm,extraArm,n:s.n,share:k,front,extra,
+      mFront:wf*(front*arm+extra*extraArm)+df*upper*Math.abs(p.eccY),mSide:wf*side*arm+df*upper*Math.abs(p.eccX),
+      vFront:wf*(front+extra),vSide:wf*side,pMax:df*upper+wf*s.dNw+df*s.dNd,pMin:p.stabilize*upper-wf*s.dNw-df*s.dNd};
   }
   const row=(label,demand,capacity,pass,detail,status)=>({group:'steel',label,demand,capacity,pass,detail,status:status||(pass?'충족':'미충족')});
   const pending=(label,status,detail)=>({group:'steel',label,demand:null,capacity:null,pass:null,detail,status});
@@ -101,18 +103,19 @@
     if(s.missing)return [pending('지주 강재 · 휨·전단·축력','미검토 · 입력 필요',`${s.missing} · 기둥 단면과 두께를 입력하면 강재 지주를 예비 검토합니다.`)];
     const a=actions(p,g,l),Fy=p.columnFy,L=a.length*1000;
     const m=flexure(s,Fy,L),v=shear(s,Fy,L),c=compression(s,Fy,L);
+    // With a push–pull couple the compression-side post governs: it carries the same ΔN plus more weight, and φPn < 0.9FyA.
     const rows=[],pc=phiC*c.Pn/1000,pr=a.pMax/pc;
     if(m.x===null||m.y===null)rows.push(row('지주 휨·축력 조합 (계수하중)',null,1,false,`${s.label} · ${m.note} · 유효폭 계산은 이 예비 검토 범위 밖입니다. 단면을 키우거나 두께를 늘리세요.`,'적용 범위 밖'));
     else{
       const mx=phiB*m.x/1e6,my=phiB*m.y/1e6;
       const bending=s.kind==='circle'?Math.hypot(a.mFront,a.mSide)/mx:a.mFront/mx+a.mSide/my;
       const ratio=pr>=0.2?pr+8/9*bending:pr/2+bending;
-      rows.push(row('지주 휨·축력 조합 (계수하중)',ratio,1,ratio<=1+1e-9,`${s.label} · Fy ${Fy} MPa · Mu 정면 ${a.mFront.toFixed(2)} / 측면 ${a.mSide.toFixed(2)} kN·m · φMn ${mx.toFixed(2)} / ${my.toFixed(2)} kN·m · Pu ${a.pMax.toFixed(2)} kN, φPn ${pc.toFixed(1)} kN (K=2.0, KL/r ${c.slender.toFixed(0)}) · ${m.note} · 2차 효과·압축 국부좌굴 미고려`));
+      rows.push(row('지주 휨·축력 조합 (계수하중)',ratio,1,ratio<=1+1e-9,`${a.n>1?`지주 ${a.n}개 중 바깥 지주 · `:''}${s.label} · Fy ${Fy} MPa · Mu 정면 ${a.mFront.toFixed(2)} / 측면 ${a.mSide.toFixed(2)} kN·m · φMn ${mx.toFixed(2)} / ${my.toFixed(2)} kN·m · Pu ${a.pMax.toFixed(2)} kN, φPn ${pc.toFixed(1)} kN (K=2.0, KL/r ${c.slender.toFixed(0)}) · ${m.note} · 2차 효과·압축 국부좌굴 미고려`));
     }
     const vf=a.vFront/(phiV*v.front/1000),vs=a.vSide/(phiV*v.side/1000),frontGoverns=s.kind==='circle'||vf>=vs;
     const vu=s.kind==='circle'?Math.hypot(a.vFront,a.vSide):frontGoverns?a.vFront:a.vSide,vn=phiV*(frontGoverns?v.front:v.side)/1000;
     rows.push(row('지주 전단 (계수하중)',vu,vn,vu<=vn+1e-9,`${frontGoverns?'정면':'측면'} 방향 · Vu와 φVn · kN · φv=0.9`));
-    const I=s.Ix,F=l.front*1000,x=a.arm*1000,e=p.extraForce*1000,z=a.extraArm*1000;
+    const I=s.Ix,F=a.front*1000,x=a.arm*1000,e=a.extra*1000,z=a.extraArm*1000;
     const deflection=(F*x*x*(3*L-x)+e*z*z*(3*L-z))/(6*E*I),limit=L/100;
     rows.push(row('지주 상단 처짐 (사용 풍하중 · 참고)',deflection,limit,null,`정면 풍하중을 화면 중심 높이의 집중하중으로 본 캔틸레버 처짐 · mm · 비교값 L/100은 참고이며 허용 처짐은 발주·제작 기준을 확인`,'참고'));
     return rows;

@@ -74,7 +74,8 @@
   });
   $('use-current-wind').addEventListener('click',()=>{api.recalc();if(!api.getResult())return;api.setNotes({windManual:true,windExample:false});showStep(2);});
   $('size-back').addEventListener('click',()=>showStep(1));$('edit-size').addEventListener('click',()=>showStep(2));
-  $('edit-multi-foundation').addEventListener('click',()=>{$('advanced-settings').open=true;$('dimension-details').open=true;window.FoundationMotion?.scrollTo($('dimension-details'));$('L').focus?.({preventScroll:true});});
+  // Editing one footing's size means manual dimensions; the fields already hold the automatic result.
+  $('edit-multi-foundation').addEventListener('click',()=>{if($('mode').value==='auto'){$('mode').value='manual';window.FoundationUI.recalc();}$('advanced-settings').open=true;$('dimension-details').open=true;window.FoundationMotion?.scrollTo($('dimension-details'));$('L').focus?.({preventScroll:true});});
   $('calculate-simple').addEventListener('click',()=>{api.recalc();if(api.getResult())showStep(3);});
   $('ground-status').addEventListener('change',()=>api.setNotes({groundKnown:$('ground-status').value==='provided'}));
   for(const [proxy,key]of [['width-m','signW'],['height-m','signH']]){
@@ -91,7 +92,7 @@
     $('guide-width').textContent=Number.isFinite(p.signW)?`가로 ${num(p.signW/1000,3)}m`:'가로';$('guide-height').textContent=Number.isFinite(p.signH)?`${num(p.signH/1000,3)}m`:'세로';$('guide-bottom').textContent=Number.isFinite(p.bottom)?`${num(p.bottom)}m`:'하단';
     const validQty=Number.isInteger(p.qty)&&p.qty>=1&&p.qty<=(p.installMode==='shared'?32:1000);
     $('support-counts').textContent=validQty?`전광판 ${supports.boards}대 · 기초 ${p.qty}개 · 기둥 ${supports.known?supports.total+'본':'수량 미지정'}`:'기초 수량을 올바르게 입력하세요.';
-    $('quantity-help').textContent=p.installMode==='shared'?supports.shared?'한 전광판 아래 기둥과 기초를 함께 늘립니다. 기초별 하중 분배는 미검토이며, 기초 치수를 직접 입력해 물량·배근 초안을 계산합니다.':'수량을 늘리면 이 전광판 아래 기둥과 기초가 함께 늘어납니다. 독립 1주 형식은 기초 1개당 기둥 1본입니다.':'같은 전광판 설치를 반복합니다. 화면 그림은 설치 1개 기준이고 전체 물량은 입력 수량만큼 합산됩니다.';
+    $('quantity-help').textContent=p.installMode==='shared'?supports.shared?(E.canScreen(p)?'한 전광판 아래 기둥과 기초를 함께 늘립니다. 정면풍·중량은 기초 수로 나누고, 측면풍 모멘트는 바깥 기초의 축력 짝힘으로 검토합니다. 자동 치수는 기초 중심 간격 안에서 찾습니다.':'한 전광판 아래 기둥과 기초를 함께 늘립니다. 이 형식은 기초별 하중 분배를 지원하지 않아 기초 치수를 직접 입력해 물량·배근 초안을 계산합니다.'):'수량을 늘리면 이 전광판 아래 기둥과 기초가 함께 늘어납니다. 독립 1주 형식은 기초 1개당 기둥 1본입니다.':'같은 전광판 설치를 반복합니다. 화면 그림은 설치 1개 기준이고 전체 물량은 입력 수량만큼 합산됩니다.';
     $('edit-multi-foundation').hidden=!supports.shared;
     const guideCount=p.installMode==='shared'&&validQty?p.qty:1,per=supports.known?supports.perFoundation:0;
     const guideParts=[];
@@ -119,15 +120,17 @@
       $('overview').innerHTML='<div class="overview-note bad">입력 오류를 수정하면 결과가 다시 표시됩니다.</div>';return;
     }
     let headline=!n.groundKnown?'지반 확인 전 · 예비 계산 결과':'입력 조건으로 계산한 기초 후보';
-    if(r.supports.shared)headline='전광판 1대 · 다중 기초 수량 초안 / 하중 분배 미검토';
+    const distributed=r.supports.shared&&E.canScreen(p);
+    if(r.supports.shared&&!distributed)headline='전광판 1대 · 다중 기초 수량 초안 / 하중 분배 미지원';
     else if(r.p.type!=='single')headline='자재량 계산 결과 · 구조 검토 필요';
     else if(r.search&&!r.search.found)headline='자동 후보를 찾지 못했습니다 · 표시 치수 재검토';
     else if(!r.screenOK)headline='계산 조건을 충족하지 못했습니다 · 기초 재검토';
+    if(distributed)headline=`전광판 1대 · 기초 ${p.qty}개 하중 분배 · `+headline;
     const warning=!!(r.search&&!r.search.found)||!r.screenOK||!E.canScreen(p),c=r.estimate;
     const layoutMessage=r.supports.shared?r.warnings.filter(w=>w.startsWith('기초 중심 간격')||w.startsWith('바깥 기둥')).map(w=>`<p class="layout-warning">${esc(w)}</p>`).join(''):'';
     const geo=`${num(r.g.L/1000,3)} × ${num(r.g.W/1000,3)} × ${num(r.g.H/1000,3)}`;
     $('overview').innerHTML=`<section class="overview-card"><div class="overview-kicker">${mapped?esc(point.name)+' 기준점':n.windManual?'직접 입력한 바람 조건':'바람 조건 예시'} · ${num(p.signW/1000,3)} × ${num(p.signH/1000,3)}m · 전광판 ${r.supports.boards}대 · 기초 ${p.qty}개 · 기둥 ${r.supports.known?r.supports.total+"본":"미지정"}</div><h2>${headline}</h2>${layoutMessage}<div class="foundation-size ${warning?'unresolved':''} "><span>${r.search&&!r.search.found?'자동 후보 없음 · 입력되어 있던 크기':'기초 1개의 가로 × 세로 × 두께'}</span><strong>${geo} <small>m</small></strong><p>${r.g.L.toLocaleString()} × ${r.g.W.toLocaleString()} × ${r.g.H.toLocaleString()} mm${r.search&&!r.search.found?' · 자동 후보가 아닌 수동 입력 치수':''}</p></div><div class="simple-totals"><div><span>콘크리트 주문량</span><b>${num(r.total.orderedConcrete,3)} <small>m³</small></b></div><div><span>철근 주문량</span><b>${num(r.total.rebarGross,1)} <small>kg</small></b></div><div><span>예시 단가의 예상 금액 · VAT 포함</span><b>${api.hasRateErrors()?'단가 확인 필요':num(c.total,0)+'원'}</b></div></div><p class="overview-note ${warning?'bad':''}">${!n.groundKnown?'지반자료 미확인. ':''}${mapped?'지도 기준점의 예비 풍속 적용. ':!n.windManual?'풍하중 미확인·예시값 적용. ':''}${warning?'검토 항목에서 미충족·미검토 내용을 확인하세요. ':'계산된 치수와 철근은 초안입니다. '}시공 전 구조전문가 확인이 필요합니다.</p><details class="assumptions"><summary>미리 계산에 사용한 조건 확인</summary><p>지반 지지력 ${num(p.qa)}kPa · 마찰계수 ${num(p.mu)} · 전광판 ${num(p.panelKgM2)}kg/m² · 지주·프레임 ${num(p.postKg)}kg · 풍압 ${num(r.l.pressure,3)}kPa. 제품 중량·기초 상세·단가에는 초기 예시가 포함될 수 있습니다. 위 숫자는 설치지역만으로 확인되는 값이 아닙니다.</p></details></section>`;
-    $('print-context').textContent=`전광판 ${r.supports.boards}대 · 기초 ${p.qty}개 · 기둥 ${r.supports.known?r.supports.total+'본':'미지정'}. ${r.supports.shared?'기초별 반력 분배 미검토. ':''}지반자료: ${n.groundKnown?'사용자가 자료 입력 선택':'미확인 · 예비 계산'}. 풍하중: ${mapped?'지도 기준점 예비값':n.windManual?'사용자 직접 입력':'미확인 또는 예시값'}.`;
+    $('print-context').textContent=`전광판 ${r.supports.boards}대 · 기초 ${p.qty}개 · 기둥 ${r.supports.known?r.supports.total+'본':'미지정'}. ${r.supports.shared?(E.canScreen(p)?`기초 ${p.qty}개 하중 분배 · 바깥 기초 들림·압축측 검토. `:'기초별 반력 분배 미지원. '):''}지반자료: ${n.groundKnown?'사용자가 자료 입력 선택':'미확인 · 예비 계산'}. 풍하중: ${mapped?'지도 기준점 예비값':n.windManual?'사용자 직접 입력':'미확인 또는 예시값'}.`;
     if(step>1&&!windReady()&&(inputMode!=='detailed'||step===3))showStep(inputMode==='detailed'?2:1);
   }
   function preparePrint(){const node=$('reinforcement-drawings'),opened=node?.open;if(node)node.open=true;return ()=>{if(node)node.open=opened;};}

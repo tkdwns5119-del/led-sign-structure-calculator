@@ -393,25 +393,26 @@ test('detailed shortcuts reopen the chosen input group without replacing entered
 });
 
 test('one board gains matching columns and foundations when the quantity changes',()=>{
-  const h=harness();h.api.selectPoint('seoul');h.change('width-m',6);const size={...h.api.getResult().g};
+  const h=harness();h.api.selectPoint('seoul');h.change('width-m',6);
   for(const qty of [2,3,32]){
-    h.change('qty',qty);const r=h.api.getResult();assert.ok(r);assert.equal(r.supports.boards,1);assert.equal(r.total.posts,qty);assert.equal(h.el('mode').value,'manual');assert.equal(h.el('mode').options[0].disabled,true);
-    assert.equal(r.g.L,size.L);assert.equal(r.g.W,size.W);assert.equal(r.g.H,size.H);
+    h.change('qty',qty);const r=h.api.getResult();assert.ok(r);assert.equal(r.supports.boards,1);assert.equal(r.total.posts,qty);assert.equal(h.el('mode').value,'auto');assert.equal(h.el('mode').options[0].disabled,false);
+    // Each footing takes its share of the board, so automatic sizing stays inside the footing spacing.
+    if(r.search?.found)assert.ok(r.g.L<=r.p.foundationSpacing);
     assert.equal((h.el('drawings').innerHTML.match(/data-foundation="/g)||[]).length,qty);assert.equal((h.el('drawings').innerHTML.match(/data-column="/g)||[]).length,qty);assert.equal((h.el('drawings').innerHTML.match(/data-board="/g)||[]).length,1);
     assert.equal((h.el('guide-columns').innerHTML.match(/data-guide-column="/g)||[]).length,qty);assert.match(h.el('support-counts').textContent,new RegExp(`전광판 1대 · 기초 ${qty}개 · 기둥 ${qty}본`));
-    assert.match(h.el('overview').innerHTML,/하중 분배 미검토/);assert.match(h.el('checks').innerHTML,/미검토/);
+    assert.match(h.el('overview').innerHTML,new RegExp(`기초 ${qty}개 하중 분배`));assert.match(h.el('checks').innerHTML,/지주 반력 분배/);
   }
   h.change('qty',3);h.change('foundationSpacing',1000);assert.match(h.el('overview').innerHTML,/기초가 겹칩니다/);
   h.el('edit-multi-foundation').click();assert.equal(h.el('advanced-settings').open,true);assert.equal(h.el('dimension-details').open,true);assert.equal(h.el('L').disabled,false);
   h.change('qty',33);assert.equal(h.api.getResult(),null);assert.equal(h.el('csv').disabled,true);
 });
 
-test('shared support layout, counts and unreviewed status survive standalone JSON, CSV and SVG exports',()=>{
+test('shared support layout, counts and distributed-load review survive standalone JSON, CSV and SVG exports',()=>{
   const h=harness(true);h.api.selectPoint('busan');h.change('qty',3);h.change('foundationSpacing',4500);h.el('save').click();h.el('csv').click();h.el('drawing-svg').click();
   const saved=JSON.parse(h.downloads.find(x=>x.name.endsWith('.json')).content),fresh=harness(true);fresh.api.loadProject(saved);assert.equal(fresh.api.read().installMode,'shared');assert.equal(fresh.api.read().foundationSpacing,4500);assert.equal(fresh.api.getResult().total.posts,3);
-  const csv=h.downloads.find(x=>x.name.endsWith('.csv')).content;assert.match(csv,/"전광판 전체 수량","1","대"/);assert.match(csv,/"기둥 전체 수량","3","본"/);assert.match(csv,/"전도 안전율 \(두 축 합산\)","","","미검토"/);
-  const svg=h.downloads.find(x=>x.name.endsWith('.svg')).content;assert.match(svg,/전광판 1대 \/ 기초 3개 \/ 기둥 3본/);assert.equal((svg.match(/data-column="/g)||[]).length,3);assert.match(svg,/부산 기준/);assert.match(svg,/기초별 반력 분배/);
-  assert.match(fresh.el('print-context').textContent,/반력 분배 미검토/);
+  const csv=h.downloads.find(x=>x.name.endsWith('.csv')).content;assert.match(csv,/"전광판 전체 수량","1","대"/);assert.match(csv,/"기둥 전체 수량","3","본"/);assert.match(csv,/"전도 안전율 \(두 축 합산\)","[\d.,]+","[\d.,]+","(충족|미충족)"/);assert.match(csv,/"지주 반력 분배"/);
+  const svg=h.downloads.find(x=>x.name.endsWith('.svg')).content;assert.match(svg,/전광판 1대 \/ 기초 3개 \/ 기둥 3본/);assert.equal((svg.match(/data-column="/g)||[]).length,3);assert.match(svg,/부산 기준/);assert.match(svg,/기초 3개 하중 분배/);
+  assert.match(fresh.el('print-context').textContent,/기초 3개 하중 분배/);
   for(const item of saved.project.items){delete item.p.installMode;delete item.p.foundationSpacing;item.p.mode='auto';}
   fresh.api.loadProject(saved);assert.equal(fresh.api.read().installMode,'repeat');assert.equal(fresh.api.getResult().supports.boards,3);assert.equal(fresh.api.getResult().total.posts,3);assert.equal(fresh.api.getResult().search.found,true);
 });

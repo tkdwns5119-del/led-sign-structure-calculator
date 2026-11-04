@@ -83,7 +83,7 @@
     for(const k of ['columnWidth','columnDepth'])document.querySelector(`[data-field="${k}"]`).hidden=!['rect','h'].includes(p.columnShape);
     for(const k of ['columnThickness','columnFy'])document.querySelector(`[data-field="${k}"]`).hidden=p.columnShape==='schematic';
     document.querySelector('[data-field="columnFlange"]').hidden=p.columnShape!=='h';
-    const autoConnection=p.connectionMode==='auto'&&E.canScreen(p);$('connectionMode').options[1].disabled=!E.canScreen(p);
+    const autoConnection=p.connectionMode==='auto'&&E.canScreenSteel(p);$('connectionMode').options[1].disabled=!E.canScreenSteel(p);
     for(const k of ['anchorEmbed','anchorHead','anchorFy','anchorFu'])document.querySelector(`[data-field="${k}"]`).hidden=!autoConnection&&!p.anchorCount;
     for(const k of connectionKeys)$(k).disabled=autoConnection;
     document.querySelector('[data-field="plateThickness"]').hidden=p.plateShape!=='rect'&&!autoConnection;
@@ -110,7 +110,7 @@
     document.querySelector('[data-field="postSpacing"]').hidden=p.type!=='combined';
     for(const k of ['bar','spacing','neckBar','neckNX','neckNY'])$(k).disabled=p.rebarMode==='auto';
     document.querySelector('[data-field="maxSpacing"]').hidden=p.rebarMode!=='auto';
-    $('mode-note').textContent=E.sharedSupports(p)?'전광판 1대를 여러 기초로 받치는 배치입니다. 입력한 동일 치수로 수량과 배근 초안을 계산하며 기초별 반력 분배·구조 검토는 별도입니다.':p.type!=='single'?'이 형식은 수동 치수로 물량·배근 초안을 산출합니다. 형식에 맞는 구조해석과 반력 분배가 필요합니다.':p.mode==='auto'?'푸팅 두께 1,500mm 이상에서 100mm 단위 후보를 검토합니다. 목 단면은 입력값을 유지하며, 자동 치수는 푸팅에 적용합니다.':'치수를 직접 입력하면 검토값과 물량·배근도가 바로 갱신됩니다.';
+    $('mode-note').textContent=E.sharedSupports(p)&&p.type==='single'?`전광판 1대를 지주 ${p.qty}개·독립기초 ${p.qty}개가 나눠 받칩니다. 하중을 기초별로 나누고 바깥 기초의 들림측·압축측을 검토합니다. 자동 치수는 기초 중심 간격보다 작은 가로 치수에서 찾습니다.`:E.sharedSupports(p)?'전광판 1대를 여러 기초로 받치는 배치입니다. 이 형식은 기초별 하중 분배를 지원하지 않아 수량과 배근 초안만 계산합니다.':p.type==='combined'?'복합 통기초는 수동 치수로 물량·배근 초안을 산출합니다. 지주·앵커·베이스플레이트는 지주 2개에 하중을 나눠 지주별로 예비 검토합니다.':p.type!=='single'?'이 형식은 수동 치수로 물량·배근 초안을 산출합니다. 형식에 맞는 구조해석과 반력 분배가 필요합니다.':p.mode==='auto'?'푸팅 두께 1,500mm 이상에서 100mm 단위 후보를 검토합니다. 목 단면은 입력값을 유지하며, 자동 치수는 푸팅에 적용합니다.':'치수를 직접 입력하면 검토값과 물량·배근도가 바로 갱신됩니다.';
   }
   let itemSequence=0;
   function createItemId(){return window.crypto?.randomUUID?.()||`foundation-${Date.now().toString(36)}-${(++itemSequence).toString(36)}-${Math.random().toString(36).slice(2,8)}`;}
@@ -122,7 +122,7 @@
   function recalc(){
     clearTimeout(timer);timer=null;
     const p=read();if(!E.canScreen(p)&&p.mode==='auto'){p.mode='manual';$('mode').value='manual';}
-    if(!E.canScreen(p)&&p.connectionMode==='auto'){p.connectionMode='manual';$('connectionMode').value='manual';}
+    if(!E.canScreenSteel(p)&&p.connectionMode==='auto'){p.connectionMode='manual';$('connectionMode').value='manual';}
     visibility(p);$('error').hidden=true;for(const [k]of all)$(k).classList.remove('invalid');
     try {
       result=E.calculate(p);result.estimate=C.calculate(result,prices);$('outputs').classList.remove('stale');for(const id of ['xlsx','csv','drawing','drawing-svg','print'])$(id).disabled=false;
@@ -260,9 +260,10 @@
     const {p,g,q,l}=r,rb=r.r;
     const fail=r.checks.filter(c=>c.pass===false).length;
     const unsupported=!E.canScreen(p),noCandidate=r.search&&!r.search.found;
-    const title=unsupported?'수량·배근 초안 / 구조 미검토':noCandidate?'자동 후보 없음 / 수동 치수 표시':r.screenOK?'계산 항목 충족 / 상세검토 필요':`계산 항목 ${fail}개 미충족 / 치수 재검토`;
+    const steelFail=r.checks.filter(c=>c.group==='steel'&&c.pass===false).length;
+    const title=unsupported?(E.canScreenSteel(p)?`수량·배근 초안 / 푸팅 구조 미검토 · 지주·앵커 ${steelFail?steelFail+'개 미충족':'예비 검토 충족'}`:'수량·배근 초안 / 구조 미검토'):noCandidate?'자동 후보 없음 / 수동 치수 표시':r.screenOK?'계산 항목 충족 / 상세검토 필요':`계산 항목 ${fail}개 미충족 / 치수 재검토`;
     $('summary').className='summary '+(unsupported?'neutral':!r.screenOK?'bad':'');
-    $('summary').innerHTML=`<div><strong>${title}</strong><small>${E.types[p.type].label} · ${p.qty}개소 · ${r.search&&r.search.found?`100mm 격자 / ${r.search.count}개 후보 평가`:'수동 치수'} · 시공용 확정도면 아님</small></div><div class="dims">${g.L.toLocaleString()} × ${g.W.toLocaleString()} × ${g.H.toLocaleString()}<span>푸팅 L × W × H (mm)</span></div>`;
+    $('summary').innerHTML=`<div><strong>${title}</strong><small>${E.types[p.type].label} · ${p.qty}개소${E.sharedSupports(p)&&p.type==='single'?` · 전광판 1대 하중을 기초 ${p.qty}개로 분배`:''} · ${r.search&&r.search.found?`100mm 격자 / ${r.search.count}개 후보 평가`:'수동 치수'} · 시공용 확정도면 아님</small></div><div class="dims">${g.L.toLocaleString()} × ${g.W.toLocaleString()} × ${g.H.toLocaleString()}<span>푸팅 L × W × H (mm)</span></div>`;
     $('metrics').innerHTML=[['구조 콘크리트',r.total.concrete,'m³',`주문 ${fmt(r.total.orderedConcrete,3)} m³`,3],['철근 · 할증 포함',r.total.rebarGross,'kg',`순물량 ${fmt(r.total.rebarNet,1)} kg`,1],['굴착 물량',r.total.excavation,'m³',`GL 이하 ${fmt(q.depth,2)} m`,2],['거푸집 면적',r.total.form,'m²',`${p.qty}개소 전체 수량`,2]].map(([label,value,unit,sub,d])=>`<div class="metric"><label>${label}</label><strong>${fmt(value,d)}</strong><span class="unit">${unit}</span><small>${sub}</small></div>`).join('');
     $('load-summary').innerHTML=[['전광판 면적',`${fmt(l.area)} m²`],['전광판 중량',`${fmt(l.panelKg,1)} kg`],['정면 풍하중',`${fmt(l.front)} kN`],['측면 풍하중',`${fmt(l.side)} kN`],['적용 정면 풍압',`${fmt(l.pressure,3)} kPa`],[unsupported?'부력 추정':'안정용 유효하중',`${fmt(unsupported?q.buoyancy:l.N)} kN`]].map(([label,value])=>`<div>${label}<b>${value}</b></div>`).join('');
     $('checks').innerHTML=r.checks.map(c=>`<tr><td>${c.label}<small>${c.detail}</small></td><td class="number">${unsupported?'—':fmt(c.demand)}</td><td class="number">${unsupported?'—':fmt(c.capacity)}</td><td class="status"><span class="${c.pass===null||unsupported?'unknown':c.pass?'good':'bad'}">${unsupported?'미검토':c.status}</span></td></tr>`).join('');
@@ -329,7 +330,7 @@
     const dimX=cx+centers[Math.floor((count-1)/2)]*scale;
     s+=hdim(dimX-fw/2,dimX+fw/2,ftop+fh+30,`기초 1개 L ${g.L} / 두께 ${g.H}`);
     s+=text(900,24,shared?'전광판 1대 · 전체 기초 배치':'도면은 기초 1개 기준','end',12);
-    s+=text(900,45,`정면 풍압 ${fmt(l.pressure,2)} kPa`,'end')+text(900,64,`전광판 1대 풍하중 ${fmt(l.front,2)} kN`,'end')+text(900,83,shared?'기초별 반력 분배 · 구조 미검토':'정면풍은 화면에 수직 작용','end')+text(900,102,`GL 이하 굴착 ${fmt(q.depth,2)} m`,'end')+text(900,123,`전체 기초 ${p.qty}개 · 기둥 ${r.supports.known?r.supports.total+'본':'미지정'}`,'end');
+    s+=text(900,45,`정면 풍압 ${fmt(l.pressure,2)} kPa`,'end')+text(900,64,`전광판 1대 풍하중 ${fmt(l.front,2)} kN`,'end')+text(900,83,shared&&E.canScreen(p)?`기초 ${p.qty}개 하중 분배 · 바깥 기초 검토`:shared?'기초별 반력 분배 미지원 · 구조 미검토':'정면풍은 화면에 수직 작용','end')+text(900,102,`GL 이하 굴착 ${fmt(q.depth,2)} m`,'end')+text(900,123,`전체 기초 ${p.qty}개 · 기둥 ${r.supports.known?r.supports.total+'본':'미지정'}`,'end');
     if(shared)s+=text(900,142,`기초 중심 간격 ${p.foundationSpacing} mm`,'end');
     if(profile.known)s+=text(900,shared?161:142,`강재 기둥 ${profile.label} mm`,'end');
     return s+'</svg>';
@@ -407,7 +408,7 @@
     if(r.l.windDetail)rows.push(['풍속 지도 출처',W.source.title,W.source.year,W.source.figure,W.source.url],['지도 기준지점',W.getPoint(r.p.windPoint)?.name||'미선택'],['Kzr',r.l.windDetail.kzr],['설계풍속 V',r.l.windDetail.velocity,'m/s'],['지도 범위','기준지점 판독 예비값 / 정밀 좌표 GIS 판정 아님']);
     rows.push([],['물량','단위','1기초','전체','산출근거']);for(const row of [...r.boq,...r.accessoryBoq])rows.push([row.name,row.unit,row.value,row.total,row.formula]);
     rows.push([],['철근번호','부위','규격','본수/1기초','개략길이 mm','총본수','전체순중량 kg','설명']);for(const row of r.r.rows)rows.push([row.code,row.name,'D'+row.bar,row.count,row.length,row.count*r.p.qty,row.kg*r.p.qty,row.note]);
-    rows.push([],['검토','계산값','기준/용량','판정','설명']);for(const row of r.checks)rows.push([row.label,E.canScreen(r.p)?fmt(row.demand,4):'',E.canScreen(r.p)?fmt(row.capacity,4):'',E.canScreen(r.p)?row.status:'미검토',row.detail]);
+    rows.push([],['검토','계산값','기준/용량','판정','설명']);for(const row of r.checks)rows.push([row.label,row.demand==null?'':fmt(row.demand,4),row.capacity==null?'':fmt(row.capacity,4),row.status,row.detail]);
     rows.push([],['견적 공종','단위','수량','단가 원','금액 원','산출근거']);for(const row of r.estimate.rows)rows.push([row.name,row.unit,row.quantity,row.unitPrice,row.amount,row.formula]);
     rows.push(['공급가',r.estimate.subtotal],['부가세',r.estimate.vat],['합계',r.estimate.total],['견적 범위',r.estimate.note]);
     rows.push([],['프로젝트 기초 이름','치수 L×W×H','기초 수량','전광판 대수','기둥 본수','공급가','VAT 포함']);for(const {name,r:pr}of projectResults)rows.push([name,`${pr.g.L}×${pr.g.W}×${pr.g.H}`,pr.p.qty,pr.supports.boards,pr.supports.known?pr.supports.total:'미지정',pr.estimate.subtotal,pr.estimate.total]);

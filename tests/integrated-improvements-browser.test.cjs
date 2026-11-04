@@ -99,7 +99,8 @@ browserTest('a legacy project can recover its calculator while the current input
 browserTest('overview keeps structural scope and unconfirmed site data visible alongside quantities',async()=>withPage(async page=>{
   await page.evaluate(()=>{
     const f=CalculatorSuite.getFoundation(),raw=JSON.parse(JSON.stringify(f.snapshot()));
-    Object.assign(raw.project.items[0].p,{installMode:'shared',qty:3,mode:'manual'});raw.project.items[0].ui={groundKnown:false,windManual:false,windExample:false};f.loadProject(raw);
+    // A combined footing is still outside the footing review (its posts are checked individually).
+    Object.assign(raw.project.items[0].p,{type:'combined',mode:'manual',L:6500,W:2200,H:1500,cL:800,cW:800,cH:1000,above:300});raw.project.items[0].ui={groundKnown:false,windManual:false,windExample:false};f.loadProject(raw);
   });
   await page.click('#tab-overview');const summary=await waitSummary(page,/구조 미검토/);
   assert.match(summary,/지반.*미확인|지반.*확인 필요/);assert.match(summary,/풍하중.*미확인|풍하중.*확인 필요|풍하중.*미선택/);assert.match(summary,/콘크리트/);
@@ -235,11 +236,11 @@ browserTest('integrated CSV and XLSX exports carry all-item quantities, common n
   await page.click('#tab-overview');
   const sheets=await page.evaluate(()=>CalculatorSuite.reportSheets());assert.ok(Array.isArray(sheets));assert.ok(sheets.length>=2);
   assert.ok(sheets.some(sheet=>sheet.rows.some(row=>row.some(value=>typeof value==='number'&&Math.abs(value-expected)<1e-8))),'report includes concrete from every foundation');
-  const contents=JSON.stringify(sheets);assert.match(contents,/통합 발주 검수/);assert.match(contents,/A 기초/);assert.match(contents,/B 기초/);assert.match(contents,/구조 미검토/);assert.match(contents,/미확인/);
+  const contents=JSON.stringify(sheets);assert.match(contents,/통합 발주 검수/);assert.match(contents,/A 기초/);assert.match(contents,/B 기초/);assert.match(contents,/지주 반력 분배/);assert.match(contents,/미확인/);
   const order=sheets.find(sheet=>sheet.name==='기초통합물량');assert.ok(order);const orderText=JSON.stringify(order);
   for(const label of ['앵커 템플릿','무수축 몰탈','접지 동봉','ELP','산출 근거','중복 합산 금지'])assert.ok(orderText.includes(label),label);
   let pending=page.waitForEvent('download');await page.evaluate(()=>CalculatorSuite.exportReport('csv'));let download=await pending;
-  const csv=fs.readFileSync(await download.path(),'utf8');assert.equal(csv.charCodeAt(0),0xfeff);assert.match(csv,/통합 발주 검수/);assert.match(csv,/구조 미검토/);assert.match(csv,/B 기초/);
+  const csv=fs.readFileSync(await download.path(),'utf8');assert.equal(csv.charCodeAt(0),0xfeff);assert.match(csv,/통합 발주 검수/);assert.match(csv,/예시 조건 충족/);assert.match(csv,/B 기초/);
   pending=page.waitForEvent('download');await page.evaluate(()=>CalculatorSuite.exportReport('xlsx'));download=await pending;
   const bytes=fs.readFileSync(await download.path());assert.ok(bytes.subarray(0,2).equals(Buffer.from('PK')));assert.ok(bytes.includes(Buffer.from('통합 발주 검수')));assert.ok(bytes.includes(Buffer.from('B 기초')));
 }));

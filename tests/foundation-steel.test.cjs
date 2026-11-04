@@ -76,13 +76,14 @@ test('square tubes and H-shapes use the slenderness and lateral-torsional limits
   const hr=E.calculate({...h,anchorEmbed:600});assert.match(check(hr,'지주 휨·축력').detail,/횡비틀림 Lb 4700 mm/);
 });
 
-test('invalid steel inputs are rejected and unsupported foundation types never judge steel',()=>{
+test('invalid steel inputs are rejected; combined footings judge each post but not the footing; other types never judge steel',()=>{
   assert.throws(()=>E.calculate({columnShape:'circle',columnDiameter:100,columnThickness:50}),/외경의 절반/);
   assert.throws(()=>E.calculate({columnShape:'h',columnWidth:200,columnDepth:200,columnThickness:8,columnFlange:100}),/H형강 치수/);
   assert.throws(()=>E.calculate({anchorFy:500,anchorFu:400}),/인장강도는 항복강도 이상/);
   assert.throws(()=>E.calculate({anchorHead:'glued'}),/정착 형태/);
   const t=E.types.combined,r=E.calculate({type:'combined',mode:'manual',...t,...tube});
-  assert.ok(steel(r).every(c=>c.pass===null&&c.demand===null));assert.equal(r.screenOK,false);
+  assert.ok(steel(r).some(c=>c.pass!==null));assert.ok(r.checks.filter(c=>c.group!=='steel').every(c=>c.pass===null));assert.equal(r.screenOK,false);
+  for(const type of ['block','mat','strip']){const other=E.calculate({type,mode:'manual',...E.types[type],...tube});assert.ok(steel(other).every(c=>c.pass===null&&c.demand===null));}
   const line=E.calculate({...tube,plateShape:'circle',plateDiameter:500,anchorCount:2,anchorAngle:0});
   assert.equal(check(line,'앵커 강재 인장').pass,false);assert.match(check(line,'앵커 강재 인장').detail,/한 줄/);
 });
@@ -123,5 +124,26 @@ test('automatic connection grows the neck only as far as needed and passes every
   assert.ok(light.connection.mass<r.connection.mass);
   const none=E.calculate({...post,columnThickness:0});assert.equal(none.connection.found,false);assert.match(none.warnings[0],/자동 산정 실패.*두께/);
   const capped=E.calculate({...post,mode:'manual',L:800,W:800,H:1500});assert.equal(capped.connection.found,false);assert.match(capped.connection.reason,/800 mm까지/);
-  const combined=E.calculate({type:'combined',mode:'manual',...E.types.combined,...post});assert.equal(combined.connection,null);
+  // Two posts share a combined footing's board, so each post needs a lighter connection than a single post.
+  const combined=E.calculate({type:'combined',mode:'manual',...E.types.combined,...post});assert.equal(combined.connection.found,true);assert.ok(combined.connection.mass<r.connection.mass);
+  const block=E.calculate({type:'block',mode:'manual',...E.types.block,...post});assert.equal(block.connection,null);
+});
+
+const near=(a,b,eps=1e-7)=>assert.ok(Math.abs(a-b)<eps,`${a} ≠ ${b}`);
+test('two posts under one board split wind and weight and add a push-pull axial couple',()=>{
+  const post={columnShape:'circle',columnDiameter:318.5,columnThickness:6.9,anchorEmbed:600,plateThickness:30};
+  const one=E.calculate({...post}),two=E.calculate({...post,qty:2,foundationSpacing:3000,mode:'manual',L:2500,W:2500,H:1600});
+  const S=require('../dist/foundation/steel.js'),a1=S.actions(one.p,one.g,one.l),a2=S.actions(two.p,two.g,two.l),s=two.l.post;
+  assert.equal(s.n,2);near(s.lever,1.5/(2*1.5*1.5));near(a2.mFront,a1.mFront/2);near(a2.vFront,a1.vFront/2);
+  const wf=two.p.windFactor,df=two.p.deadFactor;
+  near(a2.pMax,df*two.l.upper/2+wf*s.dNw+df*s.dNd);near(a2.pMin,two.p.stabilize*two.l.upper/2-wf*s.dNw-df*s.dNd);
+  assert.ok(two.checks.some(c=>c.label==='지주 반력 분배'&&c.status==='참고'&&/지주 2개/.test(c.detail)));
+  assert.match(two.checks.find(c=>c.label.startsWith('지주 휨')).detail,/지주 2개 중 바깥 지주/);
+  // A light, deep board in strong side wind lifts the outer post: its anchors take the uplift.
+  const lifted=E.calculate({...post,qty:2,foundationSpacing:1200,mode:'manual',L:1200,W:2500,H:1600,signW:2000,signH:2000,signDepth:2000,panelKgM2:0,postKg:0,sideMode:'manual',sidePressure:3});
+  const la=S.actions(lifted.p,lifted.g,lifted.l);assert.ok(la.pMin<0);
+  const forces=S.anchorForces(lifted.p,la);near(forces.tension.reduce((t,v)=>t+v,0)/1000,-la.pMin,1e-6);
+  // A combined footing splits its board between its two posts for the steel checks only.
+  const combined=E.calculate({...post,type:'combined',mode:'manual',...E.types.combined});
+  assert.equal(combined.l.post.n,2);near(combined.l.post.spacing,E.defaults.postSpacing/1000);assert.ok(combined.checks.filter(c=>c.group==='steel').some(c=>c.pass!==null));
 });

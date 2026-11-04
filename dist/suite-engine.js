@@ -61,7 +61,7 @@
   }
   function status(result,engine){
     if(!result)return {code:'invalid',label:'입력 오류',detail:'입력 오류를 수정하면 결과가 표시됩니다.'};
-    if(!engine.canScreen(result.p))return {code:'unreviewed',label:'구조 미검토 · 수량 초안',detail:'이 형식·다중 기초 배치의 반력 분배와 구조 검토는 별도입니다.'};
+    if(!engine.canScreen(result.p))return {code:'unreviewed',label:'구조 미검토 · 수량 초안',detail:'이 형식의 푸팅 구조 검토는 별도입니다. 복합 통기초는 지주·앵커·플레이트만 지주별로 예비 검토합니다.'};
     if(result.search&&!result.search.found)return {code:'no-candidate',label:'자동 후보 없음',detail:'아래 치수와 물량은 입력되어 있던 수동값입니다. 자동 추천 결과가 아닙니다.'};
     if(!result.screenOK)return {code:'failed',label:'예비 계산 항목 미충족',detail:'검토 표의 미충족 항목을 확인하세요.'};
     const steelPending=result.checks.some(c=>c.group==='steel'&&c.pass===null&&/^미검토/.test(c.status));
@@ -115,7 +115,7 @@
     total.boq=[...allQuantities.values()];total.unpriced=[...missing.values()];return total;
   }
   function compareCandidates(p,engine,estimate,prices){
-    if(!engine.canScreen(p))throw Error('후보 비교는 중앙 1주 독립기초의 예비 계산 범위에 적용합니다.');
+    if(!engine.canScreen(p))throw Error('후보 비교는 독립기초(1주 또는 전광판 1대를 나눠 받치는 독립기초)의 예비 계산 범위에 적용합니다.');
     const base=engine.calculate(p),current=base.g.H;
     // Candidates keep the base plate, anchors and neck chosen for the current result.
     if(base.connection?.found)p={...p,...base.connection.values,connectionMode:'manual'};
@@ -125,7 +125,7 @@
       let best=null;
       const minimum=Math.ceil(Math.max(1500,p.cW+2*(p.ld+p.cover),(p.cL+2*(p.ld+p.cover))/p.aspect)/100)*100;
       for(let W=minimum;W<=p.autoMax;W+=100){
-        const L=Math.ceil(W*p.aspect/100)*100;if(L>p.autoMax)continue;
+        const L=Math.ceil(W*p.aspect/100)*100;if(L>p.autoMax||engine.sharedSupports(p)&&L>p.foundationSpacing)continue;
         let candidate;try{candidate=engine.calculate({...p,mode:'manual',L,W,H});}catch{continue;}evaluated++;
         if(!candidate.screenOK||!candidate.r.criticalFits||candidate.r.punchVu>candidate.r.punchVc)continue;
         if(!best||candidate.q.concrete<best.q.concrete)best=candidate;

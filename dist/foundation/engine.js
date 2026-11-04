@@ -58,14 +58,32 @@
     Steel.section(p);
     if(!['rect','circle'].includes(p.plateShape))throw new Error('plateShape: 베이스플레이트 형상을 확인하세요.');
     if(p.above>p.cH&&types[p.type].neck)throw new Error('목의 지상 노출고는 전체 목 높이 이하이어야 합니다.');
-    if(p.mode==='auto'&&p.type!=='single')throw new Error('자동 치수 검토는 중앙 1주 T형 독립기초에 적용합니다. 다른 형식은 수동 치수로 수량과 배근 초안을 산출하세요.');
+    if(p.mode==='auto'&&p.type!=='single')throw new Error('자동 치수 검토는 T형 독립기초(전광판 1대를 여러 독립기초가 나눠 받치는 경우 포함)에 적용합니다. 다른 형식은 수동 치수로 수량과 배근 초안을 산출하세요.');
     if(p.installMode==='shared'&&p.qty>32)throw new Error('qty: 한 전광판 아래 배치하는 기초는 1~32개를 입력하세요. 여러 전광판의 설치 수량은 배치 방식에서 선택하세요.');
-    if(sharedSupports(p)&&p.mode==='auto')throw new Error('여러 기초로 받치는 전광판은 하중 분배 해석이 필요합니다. 기초 치수를 직접 입력해 수량·배근 초안을 산출하세요.');
     if(['single','combined'].includes(p.type)&&p.bottom<p.above/1000)throw new Error('전광판 하단 높이가 목 상단보다 낮습니다. 설치 높이를 확인하세요.');
     return p;
   }
   function sharedSupports(p){return p.installMode==='shared'&&p.qty>1;}
-  function canScreen(p){return p.type==='single'&&!sharedSupports(p);}
+  // Footing screening: T-shaped single footings, one per post. Several of them under one board share its loads.
+  function canScreen(p){return p.type==='single';}
+  // Posts carrying one board, in a row along its width (m). Combined footings under one board with more
+  // than one footing are outside the distribution model.
+  function postLayout(p){
+    if(p.type==='single')return sharedSupports(p)?{n:p.qty,spacing:p.foundationSpacing/1000,footings:p.qty}:{n:1,spacing:0,footings:1};
+    if(p.type==='combined'&&!sharedSupports(p))return {n:2,spacing:p.postSpacing/1000,footings:1};
+    return null;
+  }
+  function canScreenSteel(p){return postLayout(p)!==null;}
+  // Load share of the outer post. Front wind, weight and shear split equally; the side wind moment at the
+  // base plate and the weight offset along the board are resisted by axial push–pull between posts
+  // (ΔN = M·xmax/Σx²). Post bending keeps its own share of the side moment as a cantilever: both bounds
+  // are applied together, which is conservative.
+  function postShare(p,above,actions){
+    const layout=postLayout(p);if(!layout)return null;
+    const {n,spacing}=layout,xs=Array.from({length:n},(_,i)=>(i-(n-1)/2)*spacing),sum=xs.reduce((t,x)=>t+x*x,0),lever=n>1&&sum>0?Math.max(...xs)/sum:0;
+    const arm=Math.max(0,actions.center-above/1000);
+    return {n,spacing,share:1/n,lever,dNw:actions.side*arm*lever,dNd:actions.upper*Math.abs(p.eccX)*lever,arm};
+  }
   function supportCounts(p){
     // Steel columns are defined by the 1-post and 2-post templates only.
     // Concrete neck counts in mat/strip/block templates do not define steel supports.
@@ -104,24 +122,32 @@
     const panelKg=area*p.panelKgM2,upper=(panelKg+p.postKg+p.extraKg)*9.80665/1000;
     return {area,sideArea,windDetail,pressure,sidePressure,front,side,center,panelKg,upper};
   }
+  // Board totals stay in front/side/upper; footing checks use one footing's share. With several footings
+  // under one board, the outer footings are checked on the uplift side and on the compression side.
   function loads(p,g,q) {
-    const {area,sideArea,windDetail,pressure,sidePressure,front,side,center,panelKg,upper}=signActions(p);
-    const dead=q.concrete*p.gammaC+upper;
-    const mx=front*(center+g.depth)+p.extraForce*(p.extraForceZ+g.depth);
-    const my=side*(center+g.depth);
-    const N=p.stabilize*dead-q.buoyancy;
-    const momentX=Math.abs(mx)+Math.abs(upper*p.eccY),momentY=Math.abs(my)+Math.abs(upper*p.eccX);
-    const L=g.L/1000,W=g.W/1000,A=L*W;
-    const ex=N>0?momentY/N:Infinity,ey=N>0?momentX/N:Infinity;
-    const kern=N>0?6*ex/L+6*ey/W:Infinity;
-    const qmax=N>0?N/A*(1+kern):Infinity,qmin=N>0?N/A*(1-kern):-Infinity;
-    const force=Math.hypot(front+p.extraForce,side);
-    const fsSlide=force>EPS?Math.max(0,N)*p.mu/force:Infinity;
-    const fsOver=(momentX/W+momentY/L)>EPS?Math.max(0,N)/(2*(momentX/W+momentY/L)):Infinity;
-    const Nu=p.deadFactor*(dead-q.buoyancy),muX=p.windFactor*Math.abs(mx)+p.deadFactor*Math.abs(upper*p.eccY),muY=p.windFactor*Math.abs(my)+p.deadFactor*Math.abs(upper*p.eccX);
-    const kernU=Nu>0?6*(muX/W+muY/L)/Nu:Infinity;
-    const qu=Nu>0?Nu/A*(1+kernU):Infinity;
-    return {area,sideArea,pressure,sidePressure,windDetail,front,side,force,center,panelKg,upper,dead,N,mx:momentX,my:momentY,ex,ey,kern,qmax,qmin,fsSlide,fsOver,Nu,muX,muY,kernU,qu};
+    const actions=signActions(p),{area,sideArea,windDetail,pressure,sidePressure,front,side,center,panelKg,upper}=actions;
+    const post=postShare(p,g.above,actions),footings=p.type==='single'&&post?post.n:1,k=1/footings;
+    const fFront=front*k,fSide=side*k,fUpper=upper*k,fExtra=p.extraForce*k,dN=footings>1?post.dNw+post.dNd:0,dNu=footings>1?p.windFactor*post.dNw+p.deadFactor*post.dNd:0;
+    const dead=q.concrete*p.gammaC+fUpper;
+    const mx=fFront*(center+g.depth)+fExtra*(p.extraForceZ+g.depth);
+    const my=fSide*(center+g.depth);
+    const momentX=Math.abs(mx)+Math.abs(fUpper*p.eccY),momentY=Math.abs(my)+Math.abs(fUpper*p.eccX);
+    const L=g.L/1000,W=g.W/1000,A=L*W,force=Math.hypot(fFront+fExtra,fSide);
+    const muX=p.windFactor*Math.abs(mx)+p.deadFactor*Math.abs(fUpper*p.eccY),muY=p.windFactor*Math.abs(my)+p.deadFactor*Math.abs(fUpper*p.eccX);
+    const state=sign=>{
+      const N=p.stabilize*dead-q.buoyancy+sign*dN;
+      const ex=N>0?momentY/N:Infinity,ey=N>0?momentX/N:Infinity;
+      const kern=N>0?6*ex/L+6*ey/W:Infinity;
+      const qmax=N>0?N/A*(1+kern):Infinity,qmin=N>0?N/A*(1-kern):-Infinity;
+      const fsSlide=force>EPS?Math.max(0,N)*p.mu/force:Infinity;
+      const fsOver=(momentX/W+momentY/L)>EPS?Math.max(0,N)/(2*(momentX/W+momentY/L)):Infinity;
+      const Nu=p.deadFactor*(dead-q.buoyancy)+sign*dNu,kernU=Nu>0?6*(muX/W+muY/L)/Nu:Infinity,qu=Nu>0?Nu/A*(1+kernU):Infinity;
+      return {N,ex,ey,kern,qmax,qmin,fsSlide,fsOver,Nu,kernU,qu};
+    };
+    const uplift=state(-1),press=dN>0?state(1):uplift;
+    const governing={...uplift,qmax:Math.max(uplift.qmax,press.qmax),qu:Math.max(uplift.qu,press.qu)};
+    const share=post?{...post,footings,footing:{front:fFront,side:fSide,upper:fUpper,extra:fExtra},dN,dNu,uplift,compression:press}:null;
+    return {area,sideArea,pressure,sidePressure,windDetail,front,side,force,center,panelKg,upper,dead,mx:momentX,my:momentY,muX,muY,...governing,share,post};
   }
   function aggregateQuantities(p,g,q){
     const N=p.qty,keys=['footing','neck','concrete','orderedConcrete','formFoot','formNeck','form','lean','stone','excavation','backfill','surplus','borrow'];
@@ -252,10 +278,17 @@
       c('목 띠근 간격 / 주근비 초안',r.neck?.ties.actual||0,r.neck?.tieLimit||0,!!r.neck&&r.neck.ties.actual<=r.neck.tieLimit+EPS&&r.neck.rho>=0.01-EPS&&r.neck.rho<=0.04+EPS,'min(16db주근, 48db띠근, 목 최소치수/2) · 주근비 1~4%의 예비 상세값 / P–M 별도'),
       {label:'뚫림전단 · 축력 성분 추정',demand:supported&&r.criticalFits?r.punchVu:null,capacity:supported&&r.criticalFits?r.punchVc:null,pass:null,status:supported&&!r.criticalFits?'적용 범위 밖':'별도 검토',detail:supported&&!r.criticalFits?'목 면에서 d/2 떨어진 위험둘레가 푸팅 내부에 들어오지 않습니다. 현재 추정식은 적용하지 않으며 별도 검토가 필요합니다.':'축력 추정값만 표시 / 불균형 모멘트 전달 및 위험둘레 응력 분포 미검토'},
       // Steel post and anchor rows count toward the verdict but not toward footing sizing.
-      ...Steel.checks(p,g,l).map(x=>supported||x.pass===null&&x.status==='별도 검토'?x:{...x,demand:null,capacity:null,pass:null,status:'미검토'}),
+      ...shareRows(p,l),
+      ...Steel.checks(p,g,l).map(x=>canScreenSteel(p)||x.pass===null&&x.status==='별도 검토'?x:{...x,demand:null,capacity:null,pass:null,status:'미검토'}),
       {label:'목 P–M',demand:null,capacity:null,pass:null,status:'별도 검토',detail:'콘크리트 목의 축력·휨 상호작용과 앵커 보강철근 상세'},
       {label:'침하 · 내진 · 현장 조건',demand:null,capacity:null,pass:null,status:'별도 검토',detail:'침하·회전·내진·동결심도·노출등급 피복·정착 및 이음 설계'}
     ];
+  }
+  // How the board's loads were split; shown as a reference row next to the steel checks.
+  function shareRows(p,l){
+    const s=l.share;if(!s||s.n<2)return [];
+    const f=s.footing,footingText=s.footings>1?` · 기초 1개당 정면풍 ${f.front.toFixed(2)} kN, 측면풍 ${f.side.toFixed(2)} kN, 상부중량 ${f.upper.toFixed(2)} kN, 짝힘 ±${s.dN.toFixed(2)} kN (들림·압축 양쪽 검토)`:' · 복합 통기초는 전체 하중으로 기초 안정만 계산하고 푸팅 휨은 별도';
+    return [{group:'steel',label:'지주 반력 분배',demand:null,capacity:null,pass:null,status:'참고',detail:`전광판 1대 지주 ${s.n}개 · 간격 ${(s.spacing*1000).toFixed(0)} mm · 지주당 정면풍·중량·전단 1/${s.n} · 측면풍 모멘트(플레이트 위 ${s.arm.toFixed(2)} m)와 중량 편심 eX는 바깥 지주 축력 짝힘 ±${(s.dNw+s.dNd).toFixed(2)} kN(사용) · 지주 휨은 지주별 몫을 캔틸레버로 함께 적용(보수적)${footingText}`}];
   }
   function evaluate(p,g) {
     const q=earth(p,g),l=loads(p,g,q),r=reinforcement(p,g,l),c=checks(p,g,l,r);
@@ -269,13 +302,14 @@
     const maxNeck=Math.min(3000,p.mode==='auto'?p.autoMax-2*(p.ld+p.cover):Math.min(p.L,p.W));
     const key=JSON.stringify([p,H,maxNeck]);if(connectionCache.has(key))return connectionCache.get(key);
     if(connectionCache.size>40)connectionCache.clear();
-    const design=Steel.design(p,{above:t.neck?p.above:0,neck:t.neck,cL:p.cL,cW:p.cW,cH:p.cH,H,L:p.L,W:p.W},signActions(p),{maxNeck});
+    const above=t.neck?p.above:0,actions=signActions(p);
+    const design=Steel.design(p,{above,neck:t.neck,cL:p.cL,cW:p.cW,cH:p.cH,H,L:p.L,W:p.W},{...actions,post:postShare(p,above,actions)},{maxNeck});
     connectionCache.set(key,design);return design;
   }
   function calculate(raw) {
     let p=validate(raw),result,search=null,connection=null;
     const minH=Math.ceil(Math.max(1500,p.dowelEmbed+p.cover+64)/100)*100;
-    if(p.connectionMode==='auto'&&canScreen(p)){
+    if(p.connectionMode==='auto'&&canScreenSteel(p)){
       connection=designConnection(p,minH);
       if(connection.found)p={...p,...connection.values};
     }
@@ -283,7 +317,7 @@
       let best=null,count=0;
       for(let H=minH;H<=p.autoHMax+EPS;H+=100) {
         for(let W=Math.ceil(Math.max(1500,p.cW+2*(p.ld+p.cover), (p.cL+2*(p.ld+p.cover))/p.aspect)/100)*100;W<=p.autoMax+EPS;W+=100) {
-          const L=Math.ceil(W*p.aspect/100)*100;if(L>p.autoMax)continue;
+          const L=Math.ceil(W*p.aspect/100)*100;if(L>p.autoMax||sharedSupports(p)&&L>p.foundationSpacing)continue;
           if(best&&L*W*H>=best.g.L*best.g.W*best.g.H)continue;
           let g;try{g=geometry(p,L,W,H);}catch{continue;}
           const q=earth(p,g),l=loads(p,g,q);count++;
@@ -324,15 +358,17 @@
       '전개길이는 중심선 개략값입니다. 절곡 공제·철근 이음·의자근·스페이서는 물량에 포함되지 않습니다. 앵커는 묻힘깊이를 입력한 경우 강재 인장·전단과 콘크리트 콘 파괴·뽑힘만 예비 검토합니다.',
       '강도 검토는 입력한 단일 하중계수 조합의 예비 계산입니다. 모든 하중조합 또는 500년 풍속에 대한 적용 하중계수의 적합성을 검증하지 않습니다.'
     ];
-    if(p.type!=='single')warnings.unshift('이 기초 형식은 수량·배근 초안만 지원합니다. 독립기초 식으로 구조 충족 판정을 하지 않습니다. 매트의 건물 하중·줄기초의 선하중·복합기초 반력 분배는 별도 해석하세요.');
+    if(p.type==='combined'&&canScreenSteel(p))warnings.unshift('복합 통기초는 지주 2개에 하중을 나눠 지주·앵커·베이스플레이트만 지주별로 예비 검토합니다. 두 기둥 사이 보로 거동하는 푸팅의 휨·전단과 기초 안정 판정은 하지 않으며 수량·배근 초안만 산출합니다.');
+    else if(p.type!=='single')warnings.unshift('이 기초 형식은 수량·배근 초안만 지원합니다. 독립기초 식으로 구조 충족 판정을 하지 않습니다. 매트의 건물 하중·줄기초의 선하중·복합기초 반력 분배는 별도 해석하세요.');
     if(supports.shared){
-      warnings.unshift('전광판 1대 아래 여러 기초를 배치합니다. 기초별 하중·모멘트·들림 반력은 미배분이며, 입력한 동일 치수로 수량·설정 철근비의 배근 초안만 산출합니다. 구조 충족 판정과 자동 치수 선정은 제공하지 않습니다.');
+      if(p.type==='single')warnings.unshift(`전광판 1대를 지주 ${N}개·기초 ${N}개가 나눠 받칩니다. 정면풍·중량은 기초마다 1/${N}, 측면풍 모멘트와 중량 편심은 바깥 지주의 축력 짝힘(±${l.share.dN.toFixed(2)} kN)으로 분배해 들림측·압축측 바깥 기초를 검토합니다. 지주 상부를 전광판 프레임이 강하게 묶는다는 가정이며, 프레임 접합과 기초 간 연결보는 별도 검토하세요.`);
+      else warnings.unshift('전광판 1대 아래 여러 기초를 배치합니다. 이 형식의 기초별 하중 분배는 지원하지 않아 입력한 동일 치수로 수량·설정 철근비의 배근 초안만 산출합니다.');
       if(p.foundationSpacing<g.L)warnings.unshift('기초 중심 간격이 푸팅 가로보다 작아 기초가 겹칩니다. 간격·치수를 수정하거나 통기초 형식을 검토하세요.');
       const postExtent=(N-1)*p.foundationSpacing+(p.type==='combined'?p.postSpacing:0);
       if(supports.known&&postExtent>p.signW)warnings.unshift('바깥 기둥 중심이 전광판 폭 밖에 있습니다. 기초 간격과 연결 프레임 배치를 확인하세요.');
       if(quantities.mergedExcavation)warnings.push('같은 높이·같은 치수로 X방향에 나란히 놓는 기초의 겹치는 터파기 영역을 중복 제거했습니다. 각 기초의 1개 물량과 전체 토공 물량은 단순 배수와 다를 수 있습니다.');
     }
-    const steelFailed=canScreen(p)&&result.checks.some(c=>c.group==='steel'&&c.pass===false);
+    const steelFailed=canScreenSteel(p)&&result.checks.some(c=>c.group==='steel'&&c.pass===false);
     if(connection&&!connection.found)warnings.unshift(`기둥 하부 연결 자동 산정 실패: ${connection.reason} 화면 값은 입력값입니다.`);
     else if(connection?.neckGrown)warnings.unshift(`앵커 콘크리트 파괴를 만족하도록 목을 ${connection.from.cL}×${connection.from.cW}에서 ${p.cL}×${p.cW} mm로 키웠습니다. 기초 치수와 목 철근은 키운 목 기준입니다.`);
     if(steelFailed)warnings.unshift(`지주·앵커 검토 미충족: ${result.checks.filter(c=>c.group==='steel'&&c.pass===false).map(c=>c.label).join(', ')}. 기초 치수를 키워도 해결되지 않습니다. 기둥 단면·두께·강도 또는 앵커 개수·직경·묻힘깊이를 수정하세요.`);
@@ -343,6 +379,6 @@
     if(r.neck&&(r.neck.rho<0.01||r.neck.rho>0.04))warnings.push('목 주근 비율이 초안 검토범위 1~4%를 벗어납니다.');
     return {p,...result,search,connection,boq,warnings,supports,quantities,total:{foundations:N,posts:supports.total,concrete:quantities.concrete,orderedConcrete:quantities.orderedConcrete,form:quantities.form,excavation:quantities.excavation,rebarNet:r.net*N,rebarGross:r.gross*N},oldRebar:q.concrete*p.oldRatio*(1+p.rebarWaste/100)*N};
   }
-  const api={bars,types,defaults,limits,validate,sharedSupports,canScreen,supportCounts,geometry,earth,loads,layout,flexCapacity,calculate};
+  const api={bars,types,defaults,limits,validate,sharedSupports,canScreen,canScreenSteel,postLayout,postShare,supportCounts,geometry,earth,loads,layout,flexCapacity,calculate};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FoundationEngine=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

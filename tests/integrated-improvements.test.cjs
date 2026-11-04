@@ -4,7 +4,8 @@ const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
 function project(){return {format:'foundation-project',version:1,project:{name:'통합 검수',active:0,items:[{id:'east',name:'동측',p:{...F.defaults,mode:'manual',installMode:'shared',qty:3,L:2000,W:3000,H:1500,concWaste:5,anchorCount:4},ui:{groundKnown:true,windManual:true}},{id:'west',name:'서측',p:{...F.defaults,mode:'manual',installMode:'repeat',qty:2,L:2000,W:3000,H:1500,concWaste:5,anchorCount:4},ui:{groundKnown:true,windManual:true}}]},prices:{...C.defaultPrices}};}
 test('overview distinguishes invalid, unreviewed, failed, missing automatic candidates and preliminary results',()=>{
   assert.equal(S.status(null,F).code,'invalid');
-  assert.equal(S.status(F.calculate({...F.defaults,mode:'manual',installMode:'shared',qty:3}),F).code,'unreviewed');
+  assert.equal(S.status(F.calculate({...F.defaults,mode:'manual',type:'combined',...F.types.combined}),F).code,'unreviewed');
+  assert.notEqual(S.status(F.calculate({...F.defaults,mode:'manual',installMode:'shared',qty:3}),F).code,'unreviewed');
   assert.equal(S.status(F.calculate({...F.defaults,mode:'manual',pressure:20}),F).code,'failed');
   assert.equal(S.status(F.calculate({...F.defaults,mode:'auto',autoMax:2000,autoHMax:1500,pressure:20}),F).code,'no-candidate');
   assert.equal(S.status(F.calculate(F.defaults),F).code,'preliminary');
@@ -23,7 +24,7 @@ test('all-item installation totals conserve concrete, supports and anchors witho
   // ordered with 5% allowance for 17 identical foundations.
   close(total.concrete,(9+0.64)*1.05*17);
   close(total.rebar,single.r.gross*17);assert.equal(JSON.stringify(raw),before);
-  assert.equal(total.items[0].r.l.upper,single.l.upper);assert.equal(total.items[0].status.code,'unreviewed');
+  assert.equal(total.items[0].r.l.upper,single.l.upper);assert.equal(total.items[0].status.code,S.status(single,F).code);assert.notEqual(total.items[0].status.code,'unreviewed');
 });
 test('installation metadata follows stable item IDs through reordering and rejects invalid counts',()=>{
   const raw=project(),counts={east:5,west:2};assert.deepEqual(S.cleanCounts(counts,raw),counts);
@@ -63,5 +64,7 @@ test('candidate comparison returns individually evaluated options and leaves inp
   assert.ok(result.evaluated>0);assert.ok(result.alternatives.length>=1&&result.alternatives.length<=3);
   for(const candidate of result.alternatives)if(candidate.r){assert.equal(candidate.r.screenOK,true);assert.ok(candidate.r.r.criticalFits);assert.ok(candidate.r.r.punchVu<=candidate.r.r.punchVc);assert.ok(candidate.estimate.total>0);}
   assert.equal(JSON.stringify(p),before);assert.deepEqual(prices,C.defaultPrices);
-  assert.throws(()=>S.compareCandidates({...p,mode:'manual',installMode:'shared',qty:3},F,C,prices),/중앙 1주/);
+  const shared=S.compareCandidates({...p,mode:'manual',installMode:'shared',qty:3,foundationSpacing:3000},F,C,prices);
+  for(const candidate of shared.alternatives)if(candidate.r)assert.ok(candidate.r.g.L<=3000&&candidate.r.screenOK);
+  assert.throws(()=>S.compareCandidates({...p,mode:'manual',type:'combined',...F.types.combined},F,C,prices),/독립기초/);
 });

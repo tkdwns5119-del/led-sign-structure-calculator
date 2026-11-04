@@ -85,11 +85,19 @@ test('shared and repeated layouts distinguish board, foundation and column count
   for(const type of ['block','mat','strip']){const r=E.calculate({type,mode:'manual',...E.types[type],qty:2});assert.equal(r.supports.known,false);assert.equal(r.total.posts,null);assert.ok(!r.boq.some(x=>x.name==='기둥·지주 수량'));}
 });
 
-test('shared multi-support layouts keep entered dimensions and cannot claim structural screening',()=>{
+test('single footings sharing one board split its loads and check the uplift and compression sides',()=>{
   const r=E.calculate({mode:'manual',qty:3,L:3200,W:2800,H:1000,rebarMode:'manual',bar:22,spacing:175});
-  assert.equal(r.g.L,3200);assert.equal(r.g.W,2800);assert.equal(r.g.H,1000);assert.equal(r.search,null);assert.equal(r.screenOK,false);assert.ok(r.checks.every(c=>c.pass===null));
-  near(r.total.concrete,r.q.concrete*3);near(r.total.rebarNet,r.r.net*3);assert.ok(r.warnings.some(w=>w.includes('미배분')));
-  assert.throws(()=>E.calculate({qty:2,mode:'auto'}),/하중 분배/);assert.equal(E.calculate({qty:2,installMode:'repeat'}).search.found,true);
+  assert.equal(r.g.L,3200);assert.equal(r.g.W,2800);assert.equal(r.g.H,1000);assert.equal(r.search,null);assert.ok(r.checks.some(c=>c.pass!==null&&c.group!=='steel'));
+  near(r.total.concrete,r.q.concrete*3);near(r.total.rebarNet,r.r.net*3);assert.ok(r.warnings.some(w=>w.includes('나눠 받칩니다')));
+  // Board totals stay in l; each footing takes a third, and the outer footing gets ±ΔN = M·xmax/Σx².
+  const s=r.l.share,spacing=E.defaults.foundationSpacing/1000,arm=r.l.center-r.g.above/1000;
+  near(s.footing.front,r.l.front/3);near(s.footing.upper,r.l.upper/3);near(s.lever,spacing/(2*spacing*spacing));
+  near(s.dN,r.l.side*arm/(2*spacing)+r.l.upper*Math.abs(r.p.eccX)/(2*spacing));
+  near(s.uplift.N,s.compression.N-2*s.dN);near(r.l.N,s.uplift.N);near(r.l.qmax,Math.max(s.uplift.qmax,s.compression.qmax));
+  const one=E.calculate({mode:'manual',L:3200,W:2800,H:1000,rebarMode:'manual',bar:22,spacing:175});assert.ok(r.l.fsOver>one.l.fsOver,'a third of the wind per footing is easier to hold than all of it');
+  const auto=E.calculate({qty:2,mode:'auto',foundationSpacing:3000});assert.equal(auto.search.found,true);assert.ok(auto.g.L<=3000);assert.equal(auto.footingOK,true);
+  assert.equal(E.calculate({qty:2,installMode:'repeat'}).search.found,true);
+  const unsupported=E.calculate({type:'combined',mode:'manual',...E.types.combined,qty:2});assert.ok(unsupported.checks.every(c=>c.pass===null));assert.ok(unsupported.warnings.some(w=>w.includes('지원하지 않아')));
 });
 
 test('shared layout reports overlap and outlying supports and validates count and spacing',()=>{
