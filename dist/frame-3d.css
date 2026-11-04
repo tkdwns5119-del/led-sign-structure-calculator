@@ -8,3 +8,13 @@
 .frame-3d-legend button:disabled{opacity:.6;cursor:default}
 .frame-3d-svg polygon[data-selected=true]{stroke:#fff;stroke-width:2px}
 body[data-mode=simple] .frame-3d-svg polygon[data-frame-part]:not([data-frame-part=""]){cursor:pointer}
+.frame-3d-widget{position:relative}
+.frame-3d-mode .frame-3d-expand{flex:0 0 auto;border:1px solid #4f7383;background:#1a3a4a}
+.frame-3d-mode .frame-3d-expand[aria-pressed=true]{background:#dbf4eb;color:#12534b;border-color:#dbf4eb;font-weight:700}
+.frame-3d-tip{position:absolute;z-index:5;max-width:min(320px,calc(100% - 12px));padding:7px 10px;border-radius:8px;background:#f7fbfc;color:#173345;font-size:13px;line-height:1.5;box-shadow:0 6px 18px rgba(0,0,0,.35);pointer-events:none;word-break:keep-all}
+.frame-3d-svg polygon[data-index]{transition:none}
+.frame-3d-widget.is-expanded{position:fixed;inset:0;z-index:1000;margin:0;padding:12px 16px;background:#10283a;overflow:auto;display:flex;flex-direction:column}
+.frame-3d-widget.is-expanded .frame-3d-output{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center}
+.frame-3d-widget.is-expanded .frame-3d-svg{width:auto;height:100%;max-width:100%;max-height:calc(100vh - 150px)!important}
+.frame-3d-widget.is-expanded .frame-3d-tools,.frame-3d-widget.is-expanded .frame-3d-legend{flex:0 0 auto}
+html.frame-3d-locked,html.frame-3d-locked body{overflow:hidden}
