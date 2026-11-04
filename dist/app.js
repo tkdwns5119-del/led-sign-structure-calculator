@@ -44,7 +44,10 @@ function select(path,label,options,attributes={}){const value=get(path);return `
 function check(path,label){return `<label class="check"><input id="${fieldId(path)}" type="checkbox" data-path="${path}" ${get(path)?'checked':''}>${esc(label)}</label>`;}
 function button(action,label,attrs='',secondary=true){return `<button type="button" data-action="${action}" ${attrs} class="button ${secondary?'secondary':'primary'}">${label}</button>`;}
 function materialOptions(){return project.materials.map(m=>[m.id,`${m.name} · ${m.grade} · ${m.finish}`]);}
-function refFields(path,label){return `<div class="ref-fields">${select(path+'.materialId',label,materialOptions())}${select(path+'.rotation','방향',[[0,'기본'],[1,'90° 회전']])}</div>`;}
+// Member material picker: registered materials, then standard sections not registered yet (picking one registers it).
+function memberMaterialSelect(path,label){const value=get(path),registered=new Set(project.materials.filter(m=>m.section!=='custom').map(m=>m.section)),option=(v,t)=>`<option value="${esc(v)}" ${String(value)===String(v)?'selected':''}>${esc(t)}</option>`,extra=Object.entries(P.legacy.presets).filter(([id])=>!registered.has(id));return `<label class="field">${esc(label)}<select id="${fieldId(path)}" data-path="${path}" data-label="${esc(label)}"><optgroup label="등록된 자재">${materialOptions().map(([v,t])=>option(v,t)).join('')}</optgroup>${extra.length?`<optgroup label="표준 규격 · 고르면 자재로 등록">${extra.map(([id,p])=>option('preset:'+id,`＋ ${P.legacy.families[p.family]} ${p.label}`)).join('')}</optgroup>`:''}</select></label>`;}
+function registerPreset(id){const m=P.material(id,uid('m'));if(!m.section||m.section==='custom')throw Error('표준 규격을 찾을 수 없습니다.');project.materials.push(m);return m.id;}
+function refFields(path,label){return `<div class="ref-fields">${memberMaterialSelect(path+'.materialId',label)}${select(path+'.rotation','방향',[[0,'기본'],[1,'90° 회전']])}</div>`;}
 function design(){
  const g=project.general,two=g.planes===2;
  if(!two&&selectedFace!=='front')selectedFace='front';
@@ -244,6 +247,7 @@ function applyField(input){
  const path=input.dataset.path;if(!path||input.disabled)return false;
  let value=input.type==='checkbox'?input.checked:input.type==='number'?(input.value===''?(input.dataset.nullable?null:NaN):Number(input.value)):input.value;
  if(input.tagName==='SELECT'&&(/\.rotation$|\.planes$|\.selectedLength$|\.precision$/.test(path)))value=Number(value);
+ if(/.materialId$/.test(path)&&typeof value==='string'&&value.startsWith('preset:')){const id=registerPreset(value.slice(7));value=id;input.value=id;notice('표준 규격을 자재로 등록하고 이 부재에 적용했습니다. 원자재 길이와 단가는 02 자재 · 재고에서 확인하세요.');}
  const old=get(path);if(Object.is(old,value))return false;put(path,value);
  if(path==='cabinet.midHorizontal'&&project.cabinet.enabled)P.cabinetHorizontal(project);
  if(path==='backLinked'&&!value)project.back=P.clone(project.front);if(path==='rightLinked'&&!value)project.right=P.clone(project.left);
