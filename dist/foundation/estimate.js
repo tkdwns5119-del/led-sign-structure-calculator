@@ -1,10 +1,12 @@
 (function(root){
   'use strict';
+  const Steel=typeof module!=='undefined'&&module.exports?require('./steel.js'):root.FoundationSteel;
   // Attached code_artifact2.html example rates; these are not live market prices.
   const defaultPrices={excavation:14000,stone:28000,stoneLabor:4500,lean:105000,footing:115000,neck:125000,formFoot:32000,formNeck:38000,rebar:1180,backfill:8500,surplus:18000,borrow:0,anchor:32000,template:120000,grout:16000,ground:65000,elp:12000};
   function column(p){
-    return {shape:p.columnShape,known:p.columnShape!=='schematic',width:p.columnShape==='circle'?p.columnDiameter:p.columnShape==='rect'?p.columnWidth:150,depth:p.columnShape==='circle'?p.columnDiameter:p.columnShape==='rect'?p.columnDepth:150,
-      label:p.columnShape==='circle'?`원형 Ø${p.columnDiameter}`:p.columnShape==='rect'?`사각 ${p.columnWidth}×${p.columnDepth}`:'단면 미입력 / 개념 표시'};
+    const box=p.columnShape==='rect'||p.columnShape==='h',t=p.columnThickness>0?`×${p.columnThickness}t`:'';
+    return {shape:p.columnShape,known:p.columnShape!=='schematic',width:p.columnShape==='circle'?p.columnDiameter:box?p.columnWidth:150,depth:p.columnShape==='circle'?p.columnDiameter:box?p.columnDepth:150,
+      label:p.columnShape==='circle'?`원형 Ø${p.columnDiameter}${t}`:p.columnShape==='rect'?`사각 ${p.columnWidth}×${p.columnDepth}${t}`:p.columnShape==='h'?`H ${p.columnDepth}×${p.columnWidth}${p.columnThickness>0?`×${p.columnThickness}`:''}${p.columnFlange>0?`×${p.columnFlange}`:''}`:'단면 미입력 / 개념 표시'};
   }
   function accessory(r){
     const {p,g}=r,mounts=g.neck?g.n:1,round=p.plateShape==='circle',profile=column(p),plateL=round?p.plateDiameter:p.plateL,plateW=round?p.plateDiameter:p.plateW;
@@ -20,11 +22,8 @@
     const volume=area*p.groutThickness*mounts/1e9;
     const liters=volume*1000*p.qty,groutBags=Math.max(0,Math.ceil(liters*(1+p.groutWaste/100)/p.groutYield-1e-9));
     const anchors=p.anchorCount*mounts*p.qty,templates=p.anchorCount?mounts*p.qty:0;
-    const positions=[];
+    const positions=Steel.anchorPositions(p);
     if(p.anchorCount){
-      if(round){const radius=p.plateDiameter/2-p.anchorEdge;for(let i=0;i<p.anchorCount;i++){const angle=(p.anchorAngle+360*i/p.anchorCount)*Math.PI/180;positions.push([radius*Math.cos(angle),radius*Math.sin(angle)]);}}
-      else{const perSide=p.anchorCount/4,x=p.plateL/2-p.anchorEdge,y=p.plateW/2-p.anchorEdge;
-        for(let i=0;i<perSide;i++){const t=i/perSide;positions.push([-x+2*x*t,-y],[x,-y+2*y*t],[x-2*x*t,y],[-x,y-2*y*t]);}}
       for(let i=0;i<positions.length;i++)for(let j=0;j<i;j++){
         const distance=Math.hypot(positions[i][0]-positions[j][0],positions[i][1]-positions[j][1]);
         if(distance+1e-9<p.anchorDiameter)throw new Error('앵커 볼트끼리 겹칩니다. 앵커 수량·직경을 줄이거나 플레이트·배치 간격을 늘리세요.');

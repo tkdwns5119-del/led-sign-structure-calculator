@@ -1,6 +1,7 @@
 (function (root) {
   'use strict';
   const Wind=typeof module!=='undefined'&&module.exports?require('./wind.js'):root.FoundationWind;
+  const Steel=typeof module!=='undefined'&&module.exports?require('./steel.js'):root.FoundationSteel;
   const bars = {
     10:{d:9.53,area:71.33,kg:0.560},13:{d:12.7,area:126.7,kg:0.995},
     16:{d:15.9,area:198.6,kg:1.560},19:{d:19.1,area:286.5,kg:2.250},
@@ -27,7 +28,8 @@
     ld:500,dowelEmbed:500,dowelTail:300,rebarWaste:3,concWaste:1,
     ow:100,lean:100,stone:200,work:300,slope:0,soilL:1.2,soilC:1,oldRatio:95,
     columnShape:'schematic',columnDiameter:300,columnWidth:150,columnDepth:150,plateShape:'rect',plateDiameter:500,anchorAngle:0,
-    anchorCount:8,anchorDiameter:30,plateL:500,plateW:500,anchorEdge:75,groutThickness:40,groutYield:12.5,groutWaste:5,groundRods:2,elpLength:10,vat:10
+    columnThickness:0,columnFlange:0,columnFy:275,
+    anchorCount:8,anchorDiameter:30,anchorEmbed:0,anchorHead:'headed',anchorFy:275,anchorFu:410,plateL:500,plateW:500,anchorEdge:75,groutThickness:40,groutYield:12.5,groutWaste:5,groundRods:2,elpLength:10,vat:10
   };
   const limits = {
     qty:[1,1000,true],foundationSpacing:[200,100000],signW:[100,50000],signH:[100,30000],signDepth:[0,10000],bottom:[0,50],basicWind:[20,60],topography:[1,3],importance:[0.5,2],direction:[0.5,1],
@@ -38,7 +40,7 @@
     autoMax:[2000,12000],autoHMax:[500,3000],aspect:[0.5,2],cover:[40,150],neckCover:[30,150],
     spacing:[50,450],maxSpacing:[100,300],neckNX:[2,200,true],neckNY:[2,200,true],tieSpacing:[50,300],ld:[100,3000],dowelEmbed:[100,3000],dowelTail:[0,2000],
     rebarWaste:[0,20],concWaste:[0,10],ow:[0,500],lean:[0,300],stone:[0,1000],work:[0,2000],slope:[0,2],soilL:[1,2],soilC:[0.5,1.2],oldRatio:[0,300],
-    columnDiameter:[50,3000],columnWidth:[50,3000],columnDepth:[50,3000],plateDiameter:[100,3000],anchorAngle:[0,360],
+    columnDiameter:[50,3000],columnWidth:[50,3000],columnDepth:[50,3000],columnThickness:[0,100],columnFlange:[0,100],columnFy:[200,700],anchorEmbed:[0,3000],anchorFy:[200,900],anchorFu:[300,1200],plateDiameter:[100,3000],anchorAngle:[0,360],
     anchorCount:[0,32,true],anchorDiameter:[16,64],plateL:[100,3000],plateW:[100,3000],anchorEdge:[20,300],groutThickness:[0,150],groutYield:[5,25],groutWaste:[0,30],groundRods:[0,20,true],elpLength:[0,1000],vat:[0,30]
   };
   const EPS=1e-8;
@@ -49,7 +51,10 @@
     }
     if(!Object.hasOwn(types,p.type)||!['shared','repeat'].includes(p.installMode)||!['auto','manual'].includes(p.mode)||!['auto','manual'].includes(p.rebarMode)||!['pressure','velocity','regional'].includes(p.windMode)||!['manual','linked'].includes(p.sideMode)||!Object.hasOwn(Wind.exposures,p.exposure)||p.windPoint&&!Wind.getPoint(p.windPoint))throw new Error('배치 방식, 기초 형식 또는 풍하중 계산 모드를 확인하세요.');
     for(const k of ['bar','neckBar','tieBar'])if(!Object.hasOwn(bars,p[k]))throw new Error('철근 규격을 확인하세요.');
-    if(!['schematic','rect','circle'].includes(p.columnShape))throw new Error('columnShape: 기둥 형상을 확인하세요.');
+    if(!['schematic','rect','circle','h'].includes(p.columnShape))throw new Error('columnShape: 기둥 형상을 확인하세요.');
+    if(!['headed','hooked'].includes(p.anchorHead))throw new Error('anchorHead: 앵커 정착 형태를 확인하세요.');
+    if(p.anchorFu<p.anchorFy)throw new Error('anchorFu: 앵커 인장강도는 항복강도 이상이어야 합니다.');
+    Steel.section(p);
     if(!['rect','circle'].includes(p.plateShape))throw new Error('plateShape: 베이스플레이트 형상을 확인하세요.');
     if(p.above>p.cH&&types[p.type].neck)throw new Error('목의 지상 노출고는 전체 목 높이 이하이어야 합니다.');
     if(p.mode==='auto'&&p.type!=='single')throw new Error('자동 치수 검토는 중앙 1주 T형 독립기초에 적용합니다. 다른 형식은 수동 치수로 수량과 배근 초안을 산출하세요.');
@@ -240,13 +245,16 @@
       c('목 주근 정착 공간',p.dowelEmbed,r.neck?.embedAvail||0,!!r.neck&&p.dowelEmbed<=r.neck.embedAvail&&p.dowelTail<=r.neck.tailAvail,'입력 근입·꼬리 길이의 공간만 확인 · mm'),
       c('목 띠근 간격 / 주근비 초안',r.neck?.ties.actual||0,r.neck?.tieLimit||0,!!r.neck&&r.neck.ties.actual<=r.neck.tieLimit+EPS&&r.neck.rho>=0.01-EPS&&r.neck.rho<=0.04+EPS,'min(16db주근, 48db띠근, 목 최소치수/2) · 주근비 1~4%의 예비 상세값 / P–M 별도'),
       {label:'뚫림전단 · 축력 성분 추정',demand:supported&&r.criticalFits?r.punchVu:null,capacity:supported&&r.criticalFits?r.punchVc:null,pass:null,status:supported&&!r.criticalFits?'적용 범위 밖':'별도 검토',detail:supported&&!r.criticalFits?'목 면에서 d/2 떨어진 위험둘레가 푸팅 내부에 들어오지 않습니다. 현재 추정식은 적용하지 않으며 별도 검토가 필요합니다.':'축력 추정값만 표시 / 불균형 모멘트 전달 및 위험둘레 응력 분포 미검토'},
-      {label:'목 · 지주 · 앵커 · 접합부',demand:null,capacity:null,pass:null,status:'별도 검토',detail:'목 P–M, 지주 강도·좌굴, 앵커 인장·전단·콘크리트 파괴, 용접·베이스플레이트'},
+      // Steel post and anchor rows count toward the verdict but not toward footing sizing.
+      ...Steel.checks(p,g,l).map(x=>supported||x.pass===null&&x.status==='별도 검토'?x:{...x,demand:null,capacity:null,pass:null,status:'미검토'}),
+      {label:'목 P–M',demand:null,capacity:null,pass:null,status:'별도 검토',detail:'콘크리트 목의 축력·휨 상호작용과 앵커 보강철근 상세'},
       {label:'침하 · 내진 · 현장 조건',demand:null,capacity:null,pass:null,status:'별도 검토',detail:'침하·회전·내진·동결심도·노출등급 피복·정착 및 이음 설계'}
     ];
   }
   function evaluate(p,g) {
     const q=earth(p,g),l=loads(p,g,q),r=reinforcement(p,g,l),c=checks(p,g,l,r);
-    return {g,q,l,r,checks:c,screenOK:canScreen(p)&&c.filter(x=>x.pass!==null).every(x=>x.pass)};
+    const footingOK=canScreen(p)&&c.filter(x=>x.pass!==null&&x.group!=='steel').every(x=>x.pass);
+    return {g,q,l,r,checks:c,footingOK,screenOK:footingOK&&c.filter(x=>x.group==='steel'&&x.pass!==null).every(x=>x.pass)};
   }
   function calculate(raw) {
     const p=validate(raw);let result,search=null;
@@ -262,12 +270,12 @@
           if(l.N<=0||l.kern>1||l.kernU>1||l.qmax>p.qa||l.fsSlide<p.fsTarget||l.fsOver<p.fsTarget)continue;
           const e=evaluate(p,g);
           // Axial punching estimate is an additional sizing filter, never a final punching approval.
-          if(e.screenOK&&e.r.criticalFits&&e.r.punchVu<=e.r.punchVc){best=e;break;}
+          if(e.footingOK&&e.r.criticalFits&&e.r.punchVu<=e.r.punchVc){best=e;break;}
         }
       }
       search={count,found:!!best,step:100};
       if(best)result=best;
-      else {result=evaluate(p,geometry(p));result.screenOK=false;}
+      else {result=evaluate(p,geometry(p));result.footingOK=false;result.screenOK=false;}
     } else result=evaluate(p,geometry(p));
     const {q,r,g,l}=result,N=p.qty,supports=supportCounts(p),quantities=aggregateQuantities(p,g,q);
     const quantityTotals={'구조 콘크리트 · 푸팅':quantities.footing,'구조 콘크리트 · 목':quantities.neck,'구조 콘크리트 · 주문량':quantities.orderedConcrete,'거푸집 · 푸팅 측면':quantities.formFoot,'거푸집 · 목 측면':quantities.formNeck,'버림 콘크리트':quantities.lean,'잡석 지정':quantities.stone,'터파기 · 자연상태':quantities.excavation,'되메우기 · 다짐상태':quantities.backfill,'잔토 반출 · 흐트러진 상태':quantities.surplus,'되메움 추가 반입 · 자연상태':quantities.borrow};
@@ -293,7 +301,7 @@
       '지도 모드는 V=V0·KD·Kzr·Kzt·Iw, p=0.5ρV²·Cf·G로 계산합니다. 주변 조도·지형·중요도·풍력·가스트 및 하중계수는 현장 기준에 맞춰 별도 확인해야 합니다.',
       '정면·측면 풍하중을 동시에 작용시키는 보수적 가정입니다. 기초 위 흙의 안정 기여와 수동토압은 제외합니다.',
       '목 철근은 1% 및 150mm 격자를 기준으로 한 초안이며 P–M 검증이 없습니다. 띠철근 갈고리·보조띠는 상세설계가 필요합니다.',
-      '전개길이는 중심선 개략값입니다. 절곡 공제·철근 이음·의자근·스페이서는 물량에 포함되지 않습니다. 앵커의 수량 산출은 앵커 강도 검증을 의미하지 않습니다.',
+      '전개길이는 중심선 개략값입니다. 절곡 공제·철근 이음·의자근·스페이서는 물량에 포함되지 않습니다. 앵커는 묻힘깊이를 입력한 경우 강재 인장·전단과 콘크리트 콘 파괴·뽑힘만 예비 검토합니다.',
       '강도 검토는 입력한 단일 하중계수 조합의 예비 계산입니다. 모든 하중조합 또는 500년 풍속에 대한 적용 하중계수의 적합성을 검증하지 않습니다.'
     ];
     if(p.type!=='single')warnings.unshift('이 기초 형식은 수량·배근 초안만 지원합니다. 독립기초 식으로 구조 충족 판정을 하지 않습니다. 매트의 건물 하중·줄기초의 선하중·복합기초 반력 분배는 별도 해석하세요.');
@@ -304,9 +312,11 @@
       if(supports.known&&postExtent>p.signW)warnings.unshift('바깥 기둥 중심이 전광판 폭 밖에 있습니다. 기초 간격과 연결 프레임 배치를 확인하세요.');
       if(quantities.mergedExcavation)warnings.push('같은 높이·같은 치수로 X방향에 나란히 놓는 기초의 겹치는 터파기 영역을 중복 제거했습니다. 각 기초의 1개 물량과 전체 토공 물량은 단순 배수와 다를 수 있습니다.');
     }
+    const steelFailed=canScreen(p)&&result.checks.some(c=>c.group==='steel'&&c.pass===false);
+    if(steelFailed)warnings.unshift(`지주·앵커 검토 미충족: ${result.checks.filter(c=>c.group==='steel'&&c.pass===false).map(c=>c.label).join(', ')}. 기초 치수를 키워도 해결되지 않습니다. 기둥 단면·두께·강도 또는 앵커 개수·직경·묻힘깊이를 수정하세요.`);
     if(search&&!search.found)warnings.unshift('지정한 탐색 한도 내에서 후보를 찾지 못했습니다. 화면의 치수는 수동 입력값이며 자동 추천 결과가 아닙니다.');
     if(canScreen(p)&&(l.kern>1||l.kernU>1))warnings.unshift('저면 일부에 인장 반력이 계산됩니다. 표시 qmax는 전면 접지 가정값이며 유효 지반응력이 아닙니다. 휨·전단 예비 검토는 미충족 처리됩니다.');
-    if(p.columnShape!=='schematic'||p.plateShape==='circle')warnings.push('기둥 단면과 베이스플레이트 모양은 도면·그라우트 물량·앵커의 기하 배치에 반영합니다. 기둥 자중은 지주·프레임 총중량에 직접 입력하고 기둥 자체 풍하중은 추가 하중으로 반영하세요. 강재 기둥·플레이트·앵커·용접 강도와 너트·공구 여유는 별도 검토 대상입니다. 콘크리트 목은 사각 단면입니다.');
+    if(p.columnShape!=='schematic'||p.plateShape==='circle')warnings.push('기둥 단면과 베이스플레이트 모양은 도면·그라우트 물량·앵커의 기하 배치에 반영합니다. 기둥 자중은 지주·프레임 총중량에 직접 입력하고 기둥 자체 풍하중은 추가 하중으로 반영하세요. 강재 기둥과 앵커는 두께·묻힘깊이를 입력하면 예비 검토하며, 베이스플레이트·용접·앵커 측면파열·전단 콘크리트 파괴와 너트·공구 여유는 별도 검토 대상입니다. 콘크리트 목은 사각 단면입니다.');
     if(p.cover<75)warnings.push('푸팅 피복이 75mm 미만입니다. 지반 접촉·버림·노출 조건에 따른 요구 피복을 확인하세요.');
     if(r.neck&&(r.neck.rho<0.01||r.neck.rho>0.04))warnings.push('목 주근 비율이 초안 검토범위 1~4%를 벗어납니다.');
     return {p,...result,search,boq,warnings,supports,quantities,total:{foundations:N,posts:supports.total,concrete:quantities.concrete,orderedConcrete:quantities.orderedConcrete,form:quantities.form,excavation:quantities.excavation,rebarNet:r.net*N,rebarGross:r.gross*N},oldRebar:q.concrete*p.oldRatio*(1+p.rebarWaste/100)*N};

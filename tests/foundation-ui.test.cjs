@@ -487,7 +487,7 @@ test('round profiles and bolt circle geometry survive offline DXF, SVG, XLSX, CS
   anchors.forEach((e,i)=>{assert.ok(Math.abs(Number(dxfTag(e,10))-Number(dxfTag(plate,10))-175*Math.cos((30+60*i)*Math.PI/180))<1e-7);assert.ok(Math.abs(Number(dxfTag(e,20))-Number(dxfTag(plate,20))-175*Math.sin((30+60*i)*Math.PI/180))<1e-7);});
   const elevation=entities.find(e=>e.type==='LWPOLYLINE'&&dxfTag(e,8)==='FND_COLUMN');const xs=elevation.tags.filter(t=>t[0]===10).map(t=>Number(t[1]));assert.equal(Math.max(...xs)-Math.min(...xs),300);
   assert.match(h.downloads.find(d=>d.name.endsWith('.svg')).content,/data-plate-shape="circle"/);
-  const csv=h.downloads.find(d=>d.name.endsWith('.csv')).content;assert.match(csv,/"강재 기둥 단면","원형 기둥"/);assert.match(csv,/"기둥 외경 Ø","300","mm"/);assert.match(csv,/"플레이트 지름 Ø","500","mm"/);assert.match(csv,/πD²\/4/);
+  const csv=h.downloads.find(d=>d.name.endsWith('.csv')).content;assert.match(csv,/"강재 기둥 단면","원형 강관"/);assert.match(csv,/"기둥 외경 Ø","300","mm"/);assert.match(csv,/"플레이트 지름 Ø","500","mm"/);assert.match(csv,/πD²\/4/);
   const files=unzipWorkbook(h.downloads.find(d=>d.name.endsWith('.xlsx')).content);assert.match(files.get('xl/worksheets/sheet6.xml'),/원형 플레이트/);assert.match(files.get('xl/worksheets/sheet6.xml'),/기둥外径|기둥 외경/);assert.match(files.get('xl/worksheets/sheet2.xml'),/πD²\/4/);
   const saved=JSON.parse(h.downloads.find(d=>d.name.endsWith('.json')).content),fresh=harness(true);fresh.api.loadProject(saved);assert.equal(fresh.api.read().columnDiameter,300);assert.equal(fresh.api.read().plateShape,'circle');assert.equal(fresh.api.read().anchorAngle,30);assert.equal(fresh.api.getResult().estimate.a.anchors,6);
   for(const key of ['columnShape','columnDiameter','columnWidth','columnDepth','plateShape','plateDiameter','anchorAngle'])delete saved.project.items[0].p[key];saved.project.items[0].p.anchorCount=8;fresh.api.loadProject(saved);assert.equal(fresh.api.read().columnShape,'schematic');assert.equal(fresh.api.read().plateShape,'rect');assert.ok(fresh.api.getResult());
@@ -499,4 +499,14 @@ test('column interference blocks exports until the plate or column dimensions ar
   for(const id of ['drawing','drawing-svg','xlsx','csv','save'])h.el(id).click();assert.equal(h.downloads.length,0);
   h.change('plateDiameter',600);assert.ok(h.api.getResult());assert.equal(h.el('drawing').disabled,false);assert.match(h.el('connection-summary').textContent,/Ø450/);
   h.change('plateShape','rect');h.change('columnShape','rect');assert.equal(h.fieldHidden('columnWidth'),false);assert.equal(h.fieldHidden('columnDiameter'),true);assert.equal(h.el('anchorCount').getAttribute('step'),'4');assert.ok(h.api.getResult());
+});
+
+test('steel post and anchor inputs appear with their section and feed the review table',()=>{
+  const h=harness(true);
+  for(const key of ['columnThickness','columnFlange','columnFy'])assert.equal(h.fieldHidden(key),true);assert.equal(h.fieldHidden('anchorEmbed'),false);
+  h.change('columnShape','h');for(const key of ['columnWidth','columnDepth','columnThickness','columnFlange','columnFy'])assert.equal(h.fieldHidden(key),false);
+  h.change('columnWidth',200);h.change('columnDepth',200);h.change('columnThickness',8);h.change('columnFlange',12);h.change('anchorEmbed',600);
+  const r=h.api.getResult();assert.equal(r.p.columnShape,'h');assert.match(h.el('connection-summary').textContent,/H 200×200×8×12/);
+  assert.ok(r.checks.some(c=>c.group==='steel'&&c.label.startsWith('지주 휨')&&c.pass!==null));assert.match(h.el('checks').innerHTML,/앵커 콘크리트 콘 파괴/);
+  h.change('anchorCount',0);for(const key of ['anchorEmbed','anchorHead','anchorFy','anchorFu'])assert.equal(h.fieldHidden(key),true);
 });

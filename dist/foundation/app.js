@@ -48,11 +48,13 @@
   spec['accessory-fields']=[['anchorCount','지지부당 앵커 수','조',4],['anchorDiameter','앵커 호칭 M','mm',1],['plateL','플레이트 가로','mm',50],['plateW','플레이트 세로','mm',50],['anchorEdge','플레이트 끝~앵커 중심','mm',5],['groutThickness','그라우트 두께','mm',5],['groutYield','25kg 제품 수율','L/포',0.5],['groutWaste','그라우트 손실률','%',1],['groundRods','기초당 접지 조수','조',1],['elpLength','기초당 ELP 길이','m',1],['vat','부가세율','%',1]];
   const take=(section,keys)=>{const rows=spec[section].filter(r=>keys.includes(r[0]));spec[section]=spec[section].filter(r=>!keys.includes(r[0]));return rows;};
   spec['connection-fields']=[
-    ['columnShape','강재 기둥 단면','',[['schematic','단면 미입력 · 개념 표시'],['circle','원형 기둥'],['rect','사각 기둥']],true],
-    ['columnDiameter','기둥 외경 Ø','mm',10],['columnWidth','기둥 가로','mm',10],['columnDepth','기둥 세로','mm',10],
+    ['columnShape','강재 기둥 단면','',[['schematic','단면 미입력 · 개념 표시'],['circle','원형 강관'],['rect','각형 강관'],['h','H형강 · 웹이 정면 풍향']],true],
+    ['columnDiameter','기둥 외경 Ø','mm',10],['columnWidth','기둥 가로 · H형강 플랜지 폭 B','mm',10],['columnDepth','기둥 세로 · H형강 춤 H','mm',10],
+    ['columnThickness','강관 두께 t · H형강 웹 tw (0=검토 안 함)','mm',0.5],['columnFlange','H형강 플랜지 두께 tf','mm',0.5],['columnFy','지주 항복강도 Fy','MPa',5],
     ['plateShape','베이스플레이트 모양','',[['rect','사각 플레이트'],['circle','원형 플레이트']],true],
     ...take('accessory-fields',['plateL','plateW']),['plateDiameter','플레이트 지름 Ø','mm',50],
-    ...take('accessory-fields',['anchorCount','anchorDiameter','anchorEdge']),['anchorAngle','첫 앵커 배치 각도','°',5]
+    ...take('accessory-fields',['anchorCount','anchorDiameter','anchorEdge']),['anchorAngle','첫 앵커 배치 각도','°',5],
+    ['anchorEmbed','앵커 묻힘깊이 hef (0=검토 안 함)','mm',10],['anchorHead','앵커 정착 형태','',[['headed','머리·너트 정착'],['hooked','J·L형 갈고리']],true],['anchorFy','앵커 항복강도','MPa',5],['anchorFu','앵커 인장강도','MPa',5]
   ];
   spec['sign-detail-fields']=take('sign-fields',['signDepth','panelKgM2','postKg','extraKg']);
   spec['site-detail-fields']=take('site-fields',['waterDepth','eccX','eccY','extraForce','extraForceZ']);
@@ -76,7 +78,10 @@
   function read(){const p={};for(const [k,,,step]of all){const v=$(k).value;p[k]=typeof E.defaults[k]==='number'?(v.trim()===''?NaN:Number(v)):v;}return p;}
   function visibility(p){
     for(const k of ['columnDiameter'])document.querySelector(`[data-field="${k}"]`).hidden=p.columnShape!=='circle';
-    for(const k of ['columnWidth','columnDepth'])document.querySelector(`[data-field="${k}"]`).hidden=p.columnShape!=='rect';
+    for(const k of ['columnWidth','columnDepth'])document.querySelector(`[data-field="${k}"]`).hidden=!['rect','h'].includes(p.columnShape);
+    for(const k of ['columnThickness','columnFy'])document.querySelector(`[data-field="${k}"]`).hidden=p.columnShape==='schematic';
+    document.querySelector('[data-field="columnFlange"]').hidden=p.columnShape!=='h';
+    for(const k of ['anchorEmbed','anchorHead','anchorFy','anchorFu'])document.querySelector(`[data-field="${k}"]`).hidden=!p.anchorCount;
     for(const k of ['plateL','plateW'])document.querySelector(`[data-field="${k}"]`).hidden=p.plateShape!=='rect';
     document.querySelector('[data-field="plateDiameter"]').hidden=p.plateShape!=='circle';
     document.querySelector('[data-field="anchorAngle"]').hidden=p.plateShape!=='circle'||!p.anchorCount;

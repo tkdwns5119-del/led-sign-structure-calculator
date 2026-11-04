@@ -48,12 +48,13 @@
     if(!engine.canScreen(result.p))return {code:'unreviewed',label:'구조 미검토 · 수량 초안',detail:'이 형식·다중 기초 배치의 반력 분배와 구조 검토는 별도입니다.'};
     if(result.search&&!result.search.found)return {code:'no-candidate',label:'자동 후보 없음',detail:'아래 치수와 물량은 입력되어 있던 수동값입니다. 자동 추천 결과가 아닙니다.'};
     if(!result.screenOK)return {code:'failed',label:'예비 계산 항목 미충족',detail:'검토 표의 미충족 항목을 확인하세요.'};
-    return {code:'preliminary',label:'예비 계산 항목 충족',detail:'표시된 계산 범위의 초안입니다. 지주·앵커·전체 구조 검토는 별도입니다.'};
+    const steelPending=result.checks.some(c=>c.group==='steel'&&c.pass===null&&/^미검토/.test(c.status));
+    return {code:'preliminary',label:'예비 계산 항목 충족',detail:'표시된 계산 범위의 초안입니다. 베이스플레이트·접합부·전체 구조 검토는 별도입니다.',steelPending};
   }
   // The headline is green only when the screened result also rests on confirmed site data and weights.
   function effectiveStatus(s,data=[],massMissing=[]){
-    if(s.code!=='preliminary'||(!data.length&&!massMissing.length))return s;
-    const pending=[...(data.length?['현장 자료']:[]),...(massMissing.length?['실제 중량']:[])].join('·');
+    if(s.code!=='preliminary'||(!data.length&&!massMissing.length&&!s.steelPending))return s;
+    const pending=[...(data.length?['현장 자료']:[]),...(massMissing.length?['실제 중량']:[]),...(s.steelPending?['지주·앵커 입력']:[])].join('·');
     return {code:'example',label:'예시 조건 충족 · 확정 전',detail:`계산 항목은 충족하지만 ${pending} 확인이 남아 있습니다. 확인 전에는 확정 결과로 쓰지 마세요.`};
   }
   // Check closest to its limit as a utilization ratio (≤ 1 passes): minimum-type checks use limit/actual, the others demand/capacity.
@@ -61,7 +62,7 @@
     if(!result?.checks)return null;let best=null;
     for(const c of result.checks){
       if(c.pass===null||c.pass===undefined||!Number.isFinite(c.demand)||!Number.isFinite(c.capacity)||c.capacity===0||/연직 유효하중/.test(c.label))continue;
-      const factor=/안전율|최소 철근량/.test(c.label),ratio=factor?(c.demand>0?c.capacity/c.demand:Infinity):c.demand/c.capacity;
+      const factor=/안전율|최소/.test(c.label),ratio=factor?(c.demand>0?c.capacity/c.demand:Infinity):c.demand/c.capacity;
       if(Number.isFinite(ratio)&&(!best||ratio>best.ratio))best={label:c.label,ratio,demand:c.demand,capacity:c.capacity,factor,pass:c.pass};
     }
     return best;
