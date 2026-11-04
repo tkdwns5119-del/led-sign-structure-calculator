@@ -13,13 +13,17 @@ test('three paired verticals automatically add six depth ties per board to mass,
   const sheet=E.sheets(p,r).find(s=>s.name==='부재산출표');assert.equal(sheet.rows.filter(row=>String(row[0]).startsWith('depth-')).length,6);assert.match(E.csv(p,r),/보강 상하 연결재 전체 수량/);
   assert.equal(V.geometry(p,r).boxes.filter(b=>b.kind==='tie').length,6);assert.equal(JSON.stringify(p),before);
 });
-test('rotated and mixed-depth verticals use their actual inner faces and section bearing width',()=>{
+test('ties sit flush with the top and bottom chords and span between the front and back chords',()=>{
+  const flat=P.createProject();flat.general.planes=2;const fr=P.calculate(flat),top=fr.depthConnectors.find(c=>c.id==='depth-v1-T'),bottom=fr.depthConnectors.find(c=>c.id==='depth-v1-B');
+  assert.equal(top.y,0);assert.equal(bottom.y+bottom.height,fr.general.height);assert.equal(bottom.z,fr.panels.front.edges.bottom.depth);assert.equal(bottom.z+bottom.depth,fr.general.depth-fr.panels.back.edges.bottom.depth);
+});
+test('rotated verticals keep their section bearing width while the tie length follows the chords',()=>{
   const p=P.createProject();p.general.planes=2;Object.assign(p.materials[0],{face:80,depth:40,section:'custom',kgm:5});
   Object.assign(p.front.vertical[0],{position:1200,rotation:1});const r=P.calculate(p),c=r.depthConnectors.find(c=>c.id==='depth-v1-T');
-  assert.equal(c.x,1180);assert.equal(c.width,40);assert.equal(c.height,80);assert.equal(c.z,80);assert.equal(c.depth,440);
-  assert.equal(c.z+c.depth,600-80);assert.equal(r.rows.find(row=>row.id===c.id).rotation,0);
+  assert.equal(c.x,1180);assert.equal(c.width,40);assert.equal(c.height,80);assert.equal(c.z,40);assert.equal(c.depth,520);
+  assert.equal(c.z+c.depth,600-40);assert.equal(r.rows.find(row=>row.id===c.id).rotation,0);
   const other=r.depthConnectors.find(c=>c.id==='depth-v2-T');assert.equal(other.depth,520);assert.equal(other.width,80);assert.equal(other.height,40);
-  const model=V.geometry(p,r);assert.equal(model.boxes.length,r.totalPieces);assert.ok(model.boxes.some(b=>b.kind==='tie'&&b.x===1180&&b.d===440));
+  const model=V.geometry(p,r);assert.equal(model.boxes.length,r.totalPieces);assert.ok(model.boxes.some(b=>b.kind==='tie'&&b.x===1180&&b.d===520));
 });
 test('single-face frames and disabled automation do not add depth ties; production rounding still applies',()=>{
   const p=P.createProject();assert.equal(P.calculate(p).depthConnectors.length,0);p.general.planes=2;p.general.verticalDepthTies=false;
@@ -41,10 +45,8 @@ test('missing V5 flags enable automation, explicit choices survive JSON, older f
   assert.equal(migrated.general.verticalDepthTies,false);close(P.calculate(migrated).totalWeight,legacy.totalWeight);
 });
 test('impossible tie gaps are rejected rather than producing negative members',()=>{
-  const p=P.createProject();p.general.planes=2;p.general.depth=150;p.materials.push({...P.material('100','m2'),face:50,depth:100,section:'custom'});p.front.vertical[0].materialId='m2';
-  assert.throws(()=>P.calculate(p),/연결 길이가 0 이하/);
-  p.general.depth=600;Object.assign(p.general,{height:200});p.front.vertical[0].materialId='m1';Object.assign(p.materials[0],{depth:100});
-  assert.throws(()=>P.calculate(p),/높이 공간/);
+  const p=P.createProject();p.general.planes=2;p.general.depth=150;Object.assign(p.materials[0],{depth:80,section:'custom'});
+  assert.throws(()=>P.calculate(p),/겹칩니다|연결 길이가 0 이하/);
 });
 const root=path.join(__dirname,'..'),runtime=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node');
 let playwright,browser;try{playwright=require(require.resolve('playwright',{paths:[root,runtime]}));}catch{}

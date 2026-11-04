@@ -92,11 +92,11 @@ function geometry(project,materials){
      // Turn the front vertical's section onto the depth axis: its front-face
      // width becomes the tie's transverse width, preserving the bearing line.
      const tie=ref(v.materialId,v.rotation?0:1),q=profileOf(tie,materials,'앞뒤 세로 보강 연결재');
-     const start=v.profile.depth,end=g.depth-rear.profile.depth,length=end-start;
-     const top=Math.max(front.y1,back.y1),bottom=Math.min(front.y2,back.y2);
-     if(length<=EPS)throw Error('앞뒤 세로 보강 연결재: 부재 깊이를 제외한 연결 길이가 0 이하입니다. 전체 깊이를 늘리세요.');
-     if(bottom-top<2*q.face-EPS)throw Error('앞뒤 세로 보강 연결재: 상·하단 연결재를 배치할 높이 공간이 부족합니다.');
-     for(const [endName,y,label] of [['T',top,'상단'],['B',bottom-q.face,'하단']]){
+     // Ties sit at chord level, flush with the top/bottom outer chords, spanning between the
+     // front and back chords so the verticals bear on them (like the side top/bottom connectors).
+     for(const [endName,edge,y,label] of [['T','top',0,'상단'],['B','bottom',g.height-q.face,'하단']]){
+       const start=front.edges[edge].depth,length=g.depth-back.edges[edge].depth-start;
+       if(length<=EPS)throw Error('앞뒤 세로 보강 연결재: 외곽재 깊이를 제외한 연결 길이가 0 이하입니다. 전체 깊이를 늘리세요.');
        const id='depth-'+v.id+'-'+endName,name='세로 보강 '+v.id+' 앞뒤 '+label+' 연결재';
        add(id,name,length,1,tie,'depth');
        depthConnectors.push({id,name,frontId:v.id,backId:rear.id,materialId:tie.materialId,rotation:tie.rotation,x:v.center-q.depth/2,y,z:start,width:q.depth,height:q.face,depth:length});
