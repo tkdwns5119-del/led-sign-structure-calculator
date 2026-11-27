@@ -125,7 +125,7 @@
     if(!E.canScreenSteel(p)&&p.connectionMode==='auto'){p.connectionMode='manual';$('connectionMode').value='manual';}
     visibility(p);$('error').hidden=true;for(const [k]of all)$(k).classList.remove('invalid');
     try {
-      result=E.calculate(p);result.estimate=C.calculate(result,prices);$('outputs').classList.remove('stale');for(const id of ['xlsx','csv','drawing','drawing-svg','print'])$(id).disabled=false;
+      result=E.calculate(p);result.estimate=C.calculate(result,prices);$('outputs').classList.remove('stale');for(const id of ['xlsx','csv','drawing','drawing-svg','print','report'])$(id).disabled=false;
       if(p.mode==='auto'&&result.search.found)for(const k of ['L','W','H'])$(k).value=result.g[k];
       // Automatic plate and anchors fill their fields; the entered neck stays as the minimum for the next search.
       if(result.connection?.found){for(const k of connectionKeys)$(k).value=result.p[k];visibility({...p,...result.connection.values});}
@@ -140,7 +140,7 @@
     }catch(err){
       result=null;$('error').hidden=false;let msg=err.message;
       for(const [k,label]of Object.entries(labels)){if(msg.startsWith(k+':')){msg=label+msg.slice(k.length);$(k).classList.add('invalid');break;}}
-      $('error').textContent=msg+' 입력 오류가 해소되면 결과가 다시 갱신됩니다.';$('outputs').classList.add('stale');for(const id of ['xlsx','csv','drawing','drawing-svg','print','save'])$(id).disabled=true;$('save-state').textContent='입력 확인 필요 · 마지막 정상 저장본 유지';
+      $('error').textContent=msg+' 입력 오류가 해소되면 결과가 다시 갱신됩니다.';$('outputs').classList.add('stale');for(const id of ['xlsx','csv','drawing','drawing-svg','print','report','save'])$(id).disabled=true;$('save-state').textContent='입력 확인 필요 · 마지막 정상 저장본 유지';
     }
     lastInputs=read();notifyUX();
   }
@@ -187,7 +187,7 @@
     $('cost-note').textContent=c.note+(c.unpriced.length?` 단가 미입력: ${c.unpriced.join(', ')}.`:'');
   }
   function rateValidity(){
-    for(const id of ['xlsx','csv','print','save'])$(id).disabled=!result||invalidRates.size>0;
+    for(const id of ['xlsx','csv','print','report','save'])$(id).disabled=!result||invalidRates.size>0;
     if(invalidRates.size){$('cost-total').textContent='단가 입력을 완료하세요. 이전 합계는 유효하지 않습니다.';$('project-total').textContent='단가 오류로 프로젝트 합계 계산이 중지되었습니다.';$('save-state').textContent='입력 확인 필요 · 마지막 정상 저장본 유지';for(const id of invalidRates.keys()){$('amount-'+id).textContent='—';$('price-'+id).setAttribute('aria-invalid','true');}}
     for(const id of Object.keys(prices))if(!invalidRates.has(id))$('price-'+id).setAttribute('aria-invalid','false');
     notifyUX();
@@ -433,9 +433,21 @@
     svg+=text(25,1280,`정착·목·앵커·뚫림 모멘트·내진·침하 별도 검토 / 개략 전개길이 / ${getNotes().groundKnown?'지반자료 사용자 입력':'지반자료 미확인'}`)+'</svg>';
     download('전광판_기초_철근_배근초안.svg','image/svg+xml;charset=utf-8',svg);toast('평면·단면·목 배근 초안을 SVG로 저장했습니다.');
   });
+  // Reference document for a structural-calculation request (report.js), opened in a new tab.
+  function reportHTML(extra={}){
+    if(!flush()||!result)return null;
+    const build=globalThis.CalculatorSuiteBuild?.label||document.querySelector('.version')?.textContent?.trim()||'';
+    return FoundationReport.build(result,{projectName:project.name,itemName:project.items[project.active].name,notes:getNotes(),windPointName:W.getPoint(result.p.windPoint)?.name||'',buildLabel:build,...extra});
+  }
+  function openReport(html,host=window){
+    const url=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'})),tab=host.open(url,'_blank');
+    if(!tab)download('구조계산_의뢰전_참고자료.html','text/html;charset=utf-8',html);
+    setTimeout(()=>URL.revokeObjectURL(url),120000);return !!tab;
+  }
+  $('report').addEventListener('click',()=>{const html=reportHTML();if(!html)return;toast(openReport(html)?'의뢰용 참고자료를 새 탭에 열었습니다. 그 화면에서 인쇄·PDF로 저장하세요.':'팝업이 막혀 의뢰용 참고자료를 HTML 파일로 저장했습니다.');});
   $('print').addEventListener('click',()=>{if(flush()){const restore=window.FoundationUX?.preparePrint();window.print();restore?.();}});
   function toast(msg){$('toast').textContent=msg;$('toast').hidden=false;window.FoundationMotion?.reveal($('toast'),'switch','label');setTimeout(()=>$('toast').hidden=true,3200);}
-  window.FoundationUI={read,recalc,flush,setProjectName,selectPoint,snapshot,validateProject,loadProject,getResult:()=>result,getExcelPacket,getNotes,setNotes:patch=>{project.items[project.active].ui=cleanNotes({...getNotes(),...patch});persist();notifyUX();},hasRateErrors:()=>invalidRates.size>0};
+  window.FoundationUI={read,recalc,flush,reportHTML,openReport,setProjectName,selectPoint,snapshot,validateProject,loadProject,getResult:()=>result,getExcelPacket,getNotes,setNotes:patch=>{project.items[project.active].ui=cleanNotes({...getNotes(),...patch});persist();notifyUX();},hasRateErrors:()=>invalidRates.size>0};
   window.addEventListener?.('beforeunload',flush);window.addEventListener?.('pagehide',flush);window.document?.addEventListener?.('visibilitychange',()=>{if(window.document.visibilityState==='hidden')flush();});
   if(STORE.embedded){const summary=document.querySelector('.file-tools>summary');if(summary)summary.textContent='기초 단독 출력';}
   itemMenu();fill(E.defaults);
