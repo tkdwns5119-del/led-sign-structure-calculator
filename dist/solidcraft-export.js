@@ -124,14 +124,21 @@
   const json=options=>JSON.stringify({commands:script(options).commands},null,1);
   // On-screen 3D preview of the same model in Frame3D's axes (x right, y down from the top, z back from
   // the front), so Frame3D.render can draw frame, posts, plates and footings together.
-  const COLORS={steel:'#8fb3c4',post:'#3f6f86',concrete:'#c9ced3',grout:'#9aa3ab'};
+  const COLORS={steel:'#7f9fb0',post:'#2f5d73',concrete:'#b9c2ca',grout:'#8f99a2'};
   function scene(options){
     const w=writer(),{frame=null,foundation=null}=options,base=foundation?foundation.p.bottom*1000:0;
     if(frame?.geometry)frameMembers(w,frame.geometry,base);
     if(foundation){const fp=frame?.result?.posts,plateTop=foundation.g.above+(foundation.p.groutThickness||0)+(foundation.p.plateThickness>0?foundation.p.plateThickness:20);foundationMembers(w,foundation,{postTop:fp?.length>0?plateTop+fp.length:Math.max(base,plateTop+1)});}
     if(!w.shapes.length)return null;
     const top=Math.max(...w.shapes.map(s=>s.z+s.h)),ground=top;
-    const boxes=w.shapes.map(s=>({x:s.x,y:top-s.z-s.h,z:s.y,w:s.l,h:s.h,d:s.w,kind:s.kind==='steel'&&s.color?'frame':s.kind,name:s.name,info:s.name,part:'',color:s.color||COLORS[s.kind]||'#9aa3ab'}));
+    // emphasize: thin members are drawn at least 1/90 of the model size so the frame reads next to the footings.
+    if(options.emphasize){const size=Math.max(...['x','y','z'].map((k,i)=>Math.max(...w.shapes.map(s=>s[k]+[s.l,s.w,s.h][i]))-Math.min(...w.shapes.map(s=>s[k])))),m=size/90;
+      for(const s of w.shapes)for(const [pos,len] of [['x','l'],['y','w'],['z','h']])if(s[len]<m){s[pos]-=(m-s[len])/2;s[len]=m;}}
+    const palette=options.theme==='twin'?{steel:'#7fd3e6',post:'#4fc3f7',concrete:'#8fa3b3',grout:'#6f8796',frame:'#5fe0c6'}:COLORS;
+    const boxes=w.shapes.map(s=>({x:s.x,y:top-s.z-s.h,z:s.y,w:s.l,h:s.h,d:s.w,kind:s.kind==='steel'&&s.color?'frame':s.kind,name:s.name,info:s.name,part:'',color:options.theme==='twin'&&s.kind==='steel'&&s.color?palette.frame:s.color||palette[s.kind]||'#9aa3ab',...(options.theme==='twin'&&s.kind==='concrete'?{opacity:.45}:{})}));
+    // The LED screen itself, a thin dark panel in front of the frame (dashboard view only).
+    if(options.screen&&frame?.geometry){const fb=boxes.filter(b=>b.kind==='frame');if(fb.length){const x0=Math.min(...fb.map(b=>b.x)),x1=Math.max(...fb.map(b=>b.x+b.w)),y0=Math.min(...fb.map(b=>b.y)),y1=Math.max(...fb.map(b=>b.y+b.h)),z0=Math.min(...fb.map(b=>b.z));
+      boxes.push({x:x0,y:y0,z:z0-Math.max(40,(x1-x0)/120),w:x1-x0,h:y1-y0,d:Math.max(40,(x1-x0)/120),kind:'screen',name:'LED 화면',info:'LED 화면',part:'',color:'#1d6fa5',opacity:.82});}}
     const bounds={min:[0,0,0].map((_,i)=>Math.min(...boxes.map(b=>[b.x,b.y,b.z][i]))),max:[0,0,0].map((_,i)=>Math.max(...boxes.map(b=>[b.x+b.w,b.y+b.h,b.z+b.d][i])))};
     const g=frame?.geometry?.general||{width:foundation.p.signW,height:foundation.p.signH,planes:1,depth:0};
     return {boxes,bounds,general:g,groundY:ground,omitted:0,extraSamples:0,depthTieCount:0,memberCount:boxes.length};

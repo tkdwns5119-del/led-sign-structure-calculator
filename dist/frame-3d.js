@@ -91,13 +91,21 @@
     }
     return order;
   }
-  function render(model,state){
+  // Camera shared by the renderer and by callers that pin labels to model points (screenPoint).
+  // state.width/height size the viewport (default 640 × 420); state.fit is the share of it the model fills.
+  function camera(model,state){
+    const W=state.width||640,H=state.height||420,fit=state.fit||[560/640,320/420];
     const center=model.bounds.min.map((v,i)=>(v+model.bounds.max[i])/2),project=p=>projectPoint(p,center,state.yaw,state.pitch);
     const projected=model.boxes.map(b=>corners(b).map(project)),all=projected.flat();
     const minX=Math.min(...all.map(p=>p[0])),maxX=Math.max(...all.map(p=>p[0])),minY=Math.min(...all.map(p=>p[1])),maxY=Math.max(...all.map(p=>p[1]));
-    const zoom=state.zoom||1,panX=state.panX||0,panY=state.panY||0;
-    const scale=Math.min(560/Math.max(1,maxX-minX),320/Math.max(1,maxY-minY))*zoom;
-    const map=p=>[320+panX+(p[0]-(minX+maxX)/2)*scale,210+panY+(p[1]-(minY+maxY)/2)*scale,p[2]];
+    const zoom=state.zoom||1,panX=state.panX||0,panY=state.panY||0,cx=W/2+(state.offsetX||0),cy=H/2+(state.offsetY||0);
+    const scale=Math.min(W*fit[0]/Math.max(1,maxX-minX),H*fit[1]/Math.max(1,maxY-minY))*zoom;
+    const map=p=>[cx+panX+(p[0]-(minX+maxX)/2)*scale,cy+panY+(p[1]-(minY+maxY)/2)*scale,p[2]];
+    return {W,H,zoom,panX,panY,project,projected,map,scale};
+  }
+  const screenPoint=(model,state,point)=>{const c=camera(model,state);return c.map(c.project(point)).slice(0,2);};
+  function render(model,state){
+    const {W,H,zoom,panX,panY,project,projected,map}=camera(model,state),light=state.theme==='light',twin=state.theme==='twin';
     const origin=project([0,0,0]),axisDepth=[[1,0,0],[0,1,0],[0,0,1]].map(e=>project(e)[2]-origin[2]);
     const viewNormals=NORMALS.map(n=>{const p=project(n);return [p[0]-origin[0],p[1]-origin[1],p[2]-origin[2]];});
     const screens=projected.map(points=>{const m=points.map(map),xs=m.map(p=>p[0]),ys=m.map(p=>p[1]);return {points:m,minX:Math.min(...xs),maxX:Math.max(...xs),minY:Math.min(...ys),maxY:Math.max(...ys),depth:m.reduce((s,p)=>s+p[2],0)/8};});
@@ -110,13 +118,19 @@
         if(cross>=0)return;
         const nv=viewNormals[face],light=Math.max(0,nv[0]*LIGHT[0]+nv[1]*LIGHT[1]+nv[2]*LIGHT[2]),fill=shade(box.color,.62+.5*light);
         const base=selected?'#ffffff':shade(box.color,.38),baseWidth=selected?1.6:.7,hovered=index===hover;
-        polygons.push(`<polygon points="${p.map(q=>q[0].toFixed(2)+','+q[1].toFixed(2)).join(' ')}" fill="${fill}" stroke="${hovered?'#ffffff':base}" stroke-width="${hovered?1.6:baseWidth}" stroke-linejoin="round" data-stroke="${base}" data-width="${baseWidth}"${hovered?' data-hover="true"':''} data-index="${index}" data-kind="${box.kind}" data-frame-part="${box.part}" data-selected="${selected}"${dim?' opacity=".3"':''}></polygon>`);
+        polygons.push(`<polygon points="${p.map(q=>q[0].toFixed(2)+','+q[1].toFixed(2)).join(' ')}" fill="${fill}"${box.opacity?` fill-opacity="${box.opacity}"`:''} stroke="${hovered?'#ffffff':base}" stroke-width="${hovered?1.6:baseWidth}" stroke-linejoin="round" data-stroke="${base}" data-width="${baseWidth}"${hovered?' data-hover="true"':''} data-index="${index}" data-kind="${box.kind}" data-frame-part="${box.part}" data-selected="${selected}"${dim?' opacity=".3"':''}></polygon>`);
       });
     }
     const g=model.general,description=`가로 ${number(g.width)}mm, 세로 ${number(g.height)}mm, ${g.planes===2?'전체 깊이 '+number(g.depth)+'mm, 앞뒤 프레임과 측면 연결재':'단면 프레임'}. 세로 보강은 주황색, 가로 보강은 보라색.`;
-    return `<svg class="frame-3d-svg" viewBox="0 0 640 420" role="img" tabindex="0" aria-label="${safe(description)} 드래그나 방향키로 회전, 마우스 휠이나 더하기·빼기 키로 확대·축소, Shift+드래그로 이동" data-yaw="${state.yaw.toFixed(3)}" data-pitch="${state.pitch.toFixed(3)}"><title>${safe(description)}</title><defs><radialGradient id="frame3d-glow"><stop stop-color="#345367"/><stop offset="1" stop-color="#152c3f"/></radialGradient></defs><rect width="640" height="420" rx="12" fill="url(#frame3d-glow)"/><ellipse cx="${(320+panX).toFixed(1)}" cy="${(380+panY).toFixed(1)}" rx="${(235*Math.min(zoom,2)).toFixed(1)}" ry="14" fill="#071924" opacity=".38"/>${polygons.join('')}</svg>`;
+    // Ground grid (dashboard view): lines on the ground plane, drawn under the model.
+    let grid='';
+    if(state.grid){const {y,x0,x1,z0,z1,step}=state.grid,line=(a,b)=>{const p=map(project(a)),q=map(project(b));return `<line x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${q[0].toFixed(1)}" y2="${q[1].toFixed(1)}"/>`;},lines=[];
+      for(let x=Math.ceil(x0/step)*step;x<=x1;x+=step)lines.push(line([x,y,z0],[x,y,z1]));for(let z=Math.ceil(z0/step)*step;z<=z1;z+=step)lines.push(line([x0,y,z],[x1,y,z]));
+      grid=`<g class="frame-3d-grid" stroke="${twin?'#2b6f8f':'#b8c6d2'}" stroke-width=".7" opacity="${twin?.55:.7}">${lines.join('')}</g>`;}
+    const bg=twin?['#16324a','#060f18']:light?['#ffffff','#dfe8ef']:['#345367','#152c3f'];
+    return `<svg class="frame-3d-svg" viewBox="0 0 ${W} ${H}" role="img" tabindex="0" aria-label="${safe(description)} 드래그나 방향키로 회전, 마우스 휠이나 더하기·빼기 키로 확대·축소, Shift+드래그로 이동" data-yaw="${state.yaw.toFixed(3)}" data-pitch="${state.pitch.toFixed(3)}"><title>${safe(description)}</title><defs><radialGradient id="frame3d-glow"><stop stop-color="${bg[0]}"/><stop offset="1" stop-color="${bg[1]}"/></radialGradient></defs><rect width="${W}" height="${H}" rx="${twin?0:12}" fill="url(#frame3d-glow)"/>${state.grid?'':`<ellipse cx="${(W/2+panX).toFixed(1)}" cy="${(H*380/420+panY).toFixed(1)}" rx="${(W*235/640*Math.min(zoom,2)).toFixed(1)}" ry="14" fill="${light?'#8ea2b2':'#071924'}" opacity="${light?.3:.38}"/>`}${grid}${polygons.join('')}</svg>`;
   }
-  const exported={geometry,projectPoint,render,drawOrder};
+  const exported={geometry,projectPoint,render,drawOrder,camera,screenPoint};
   if(typeof module==='object'){module.exports=exported;return;}
   let currentProject=null,currentResult=null,example='current',model=null,drag=null,scheduled=false;
   const DEFAULT_VIEW={yaw:-.48,pitch:.24,zoom:1,panX:0,panY:0};
