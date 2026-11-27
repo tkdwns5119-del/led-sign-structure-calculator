@@ -115,7 +115,7 @@ ${cab?`<div class="g-row">${field('cab-w','캐비닛 가로',a.cabinet.w,{unit:'
     const {foundWin,foundation}=kids(),r=foundation.getResult(),PL=foundWin.FoundationPlain;
     if(!r)return `<h2>결과</h2><p class="g-error">입력 오류가 있어 결과를 만들 수 없습니다. 앞 단계를 확인하세요.</p>`;
     const notes=foundation.getNotes(),p=r.p,c=r.connection?.found?r.connection.values:null,shared=r.supports?.shared;
-    return `<h2>결과 · 구조계산 의뢰 전 참고</h2>${PL.cardsHTML(PL.summarize(r,notes))}
+    return `<h2>결과 · 구조계산 의뢰 전 참고</h2><div class="g-result-top"><section class="g-facts"><h3>설치 모습 3D 예시</h3>${view3dHTML(true)}</section>
 <section class="g-facts"><h3>기초와 기둥</h3><dl>
 <div><dt>기초 1개 크기</dt><dd>가로 ${num(r.g.L/1000)} × 세로 ${num(r.g.W/1000)} × 두께 ${num(r.g.H/1000)} m${r.search&&!r.search.found?' <em>(자동 후보 없음 · 설계자 확인 필요)</em>':''}</dd></div>
 <div><dt>기초 개수</dt><dd>${shared?`전광판 1대에 ${p.qty}개 (기둥 간격 ${num(p.foundationSpacing/1000)} m)`:`전광판 1대에 1개`}</dd></div>
@@ -123,19 +123,37 @@ ${cab?`<div class="g-row">${field('cab-w','캐비닛 가로',a.cabinet.w,{unit:'
 ${c?`<div><dt>바닥판 · 앵커볼트</dt><dd>${c.plateL}×${c.plateW}×${c.plateThickness} mm · M${c.anchorDiameter} ${c.anchorCount}개 (묻힘 ${c.anchorEmbed} mm)</dd></div>`:''}
 <div><dt>콘크리트 · 철근 (전체)</dt><dd>약 ${num(r.total.orderedConcrete,1)} m³ · 약 ${num(r.total.rebarGross,0)} kg${shared?' (전광판 1대 기준)':''}</dd></div>
 <div><dt>바람</dt><dd>설계 풍압 ${num(r.l.pressure)} kPa · 전광판 1대가 받는 힘 약 ${num(r.l.front,1)} kN</dd></div>
-</dl></section>
+</dl></section></div>${PL.cardsHTML(PL.summarize(r,notes))}
 <section class="g-outputs"><h3>출력과 저장</h3><div class="g-buttons"><button type="button" class="primary" data-guide-click="suite-report">의뢰용 참고자료 (A4·PDF)</button><button type="button" data-guide-click="suite-solidcraft">3D 파일 (SolidCraft)</button><button type="button" data-guide-click="suite-xlsx">통합 엑셀</button><button type="button" data-guide-click="suite-save">작업 저장</button></div>
 <p class="g-note">세부 값을 고치거나 검토 표를 보려면 설계자 상세 화면을 쓰세요. <button type="button" class="link" data-view="frame">01 구조물</button> <button type="button" class="link" data-view="foundation">02 기초·철근</button> <button type="button" class="link" data-view="overview">03 전체 요약</button></p></section>`;
   }
-  // Side panel: live lights and the front drawing while answering.
+  // Live 3D of the whole installation (frame, posts, plates, footings) from the SolidCraft export's parts.
+  const VIEWS={angle:{yaw:-.55,pitch:.3},front:{yaw:0,pitch:0},side:{yaw:-Math.PI/2,pitch:0}};
+  const view3d={...VIEWS.angle,zoom:1,panX:0,panY:0};let sceneModel=null,drag3d=null,frame3d=0;
+  function buildScene(){
+    const {frameWin,frame,foundation}=kids(),r=frame.getResult(),f=foundation.getResult();if(!r&&!f)return null;
+    const project=frame.getProject(),geometry=r?frameWin.Frame3D.geometry(project,r,{limit:5000}):null;
+    return frameWin.SolidCraftExport.scene({frame:geometry?{geometry,project,result:r}:null,foundation:f});
+  }
+  const draw3d=()=>sceneModel?kids().frameWin.Frame3D.render(sceneModel,view3d):'<p class="g-error">입력 오류를 고치면 3D 모양이 나옵니다.</p>';
+  function view3dHTML(big=false){
+    sceneModel=buildScene();
+    return `<div class="g-3d${big?' big':''}"><div class="g-3d-view" aria-label="설치 모습 3D 예시">${draw3d()}</div><div class="g-3d-tools" role="group" aria-label="3D 보기 조정">${[['angle','입체'],['front','정면'],['side','측면']].map(([k,t])=>`<button type="button" data-g3d="${k}">${t}</button>`).join('')}<button type="button" data-g3d="out" aria-label="축소">−</button><button type="button" data-g3d="in" aria-label="확대">＋</button></div><p class="g-note">끌어서 돌려 보세요 · 회색 블록이 땅속 기초, 진한 기둥이 지주입니다 · 형상 확인용 예시</p></div>`;
+  }
+  function repaint3d(){frame3d=0;for(const v of document.querySelectorAll('#guide-root .g-3d-view'))v.innerHTML=draw3d();}
+  const schedule3d=()=>{if(!frame3d)frame3d=requestAnimationFrame(repaint3d);};
+  document.addEventListener('pointerdown',e=>{const v=e.target.closest?.('#guide-root .g-3d-view');if(!v||!sceneModel)return;drag3d={id:e.pointerId,x:e.clientX,y:e.clientY,yaw:view3d.yaw,pitch:view3d.pitch};v.setPointerCapture(e.pointerId);e.preventDefault();});
+  document.addEventListener('pointermove',e=>{if(!drag3d||drag3d.id!==e.pointerId)return;view3d.yaw=drag3d.yaw+(e.clientX-drag3d.x)*.009;view3d.pitch=Math.max(-1.1,Math.min(1.1,drag3d.pitch+(e.clientY-drag3d.y)*.007));schedule3d();});
+  for(const type of ['pointerup','pointercancel'])document.addEventListener(type,e=>{if(drag3d?.id===e.pointerId)drag3d=null;});
+  document.addEventListener('wheel',e=>{if(!e.target.closest?.('#guide-root .g-3d-view'))return;e.preventDefault();view3d.zoom=Math.max(.5,Math.min(6,view3d.zoom*(e.deltaY<0?1.15:1/1.15)));schedule3d();},{passive:false});
+  // Side panel: live lights and the 3D example while answering.
   function paintSide(){
     const side=$('guide-side');if(!side)return;
     const {foundWin,foundation}=kids(),r=foundation.getResult(),PL=foundWin.FoundationPlain;
     const err=$('guide-error');if(err){err.textContent=error;err.hidden=!error;}
-    if(!r){side.innerHTML='<p class="g-error">입력 오류를 고치면 미리보기가 나옵니다.</p>';return;}
+    if(!r){side.innerHTML='<h3>미리보기</h3>'+view3dHTML()+'<p class="g-error">기초 입력 오류를 고치면 신호등이 나옵니다.</p>';return;}
     const s=PL.summarize(r,foundation.getNotes()),L=PL.LIGHTS;
-    const drawing=(r.drawingParts||[])[0];
-    side.innerHTML=`<h3>미리보기</h3><p class="g-overall plain-${s.overall}">${L[s.overall].icon} <b>${L[s.overall].word}</b> · ${esc(s.headline)}</p><ul class="g-lights">${s.groups.map(g=>`<li>${L[g.light].icon} ${esc(g.short)} <em>${L[g.light].word}</em></li>`).join('')}</ul>${drawing?`<div class="g-drawing">${drawing[1]}</div>`:''}<p class="g-note">기초 1개 ${num(r.g.L/1000)} × ${num(r.g.W/1000)} × ${num(r.g.H/1000)} m</p>`;
+    side.innerHTML=`<h3>미리보기</h3><p class="g-overall plain-${s.overall}">${L[s.overall].icon} <b>${L[s.overall].word}</b> · ${esc(s.headline)}</p>${view3dHTML()}<ul class="g-lights">${s.groups.map(g=>`<li>${L[g.light].icon} ${esc(g.short)} <em>${L[g.light].word}</em></li>`).join('')}</ul><p class="g-note">기초 1개 ${num(r.g.L/1000)} × ${num(r.g.W/1000)} × ${num(r.g.H/1000)} m</p>`;
   }
   function render(){
     const root=$('guide-root');if(!root||!S()?.getState().ready)return;
@@ -164,6 +182,7 @@ ${c?`<div><dt>바닥판 · 앵커볼트</dt><dd>${c.plateL}×${c.plateW}×${c.pl
     const b=e.target.closest?.('#guide-root button');if(!b)return;
     if(b.dataset.guideMove)go(step+Number(b.dataset.guideMove));
     else if(b.dataset.guideStep)go(Number(b.dataset.guideStep));
+    else if(b.dataset.g3d){const k=b.dataset.g3d;if(VIEWS[k])Object.assign(view3d,VIEWS[k]);else view3d.zoom=Math.max(.5,Math.min(6,view3d.zoom*(k==='in'?1.25:1/1.25)));repaint3d();}
     else if(b.dataset.guideClick){const target=$(b.dataset.guideClick);if(target&&!target.disabled)target.click();}
   });
   // Header menus close once an item is chosen, and when clicking elsewhere.

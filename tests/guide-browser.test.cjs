@@ -28,7 +28,16 @@ browserTest('a new user goes from the place to the result in one flow without en
     await page.selectOption('[name=region]','busan');await page.check('[name=exposure][value=D]');await next(page);
     await page.fill('[name=width]','6');await page.fill('[name=height]','3');await page.fill('[name=bottom]','3');
     await page.check('[name=weight][value=kgm2]');await page.fill('[name=kgm2]','40');await next(page);
-    await page.check('[name=posts][value="2"]');await page.fill('[name=spacing]','3.6');await page.selectOption('[name=column]','p318_5');await next(page);
+    await page.check('[name=posts][value="2"]');await page.fill('[name=spacing]','3.6');await page.selectOption('[name=column]','p318_5');
+    // The side preview shows the whole installation in 3D and follows each answer.
+    await page.waitForFunction(()=>document.querySelectorAll('#guide-side .g-3d-view polygon').length>50);
+    const kinds=await page.evaluate(()=>[...new Set([...document.querySelectorAll('#guide-side .g-3d-view polygon')].map(p=>p.dataset.kind))]);
+    for(const kind of ['frame','post','concrete','steel'])assert.ok(kinds.includes(kind),kind+' drawn');
+    const view=page.locator('#guide-side .g-3d-view svg'),yaw=await view.getAttribute('data-yaw'),box=await page.locator('#guide-side .g-3d-view').boundingBox();
+    await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();await page.mouse.move(box.x+box.width/2+80,box.y+box.height/2,{steps:4});await page.mouse.up();
+    assert.notEqual(await page.locator('#guide-side .g-3d-view svg').getAttribute('data-yaw'),yaw,'dragging rotates the 3D');
+    await page.click('#guide-side [data-g3d="front"]');assert.equal(await page.locator('#guide-side .g-3d-view svg').getAttribute('data-yaw'),'0.000');
+    await next(page);
     const state=await page.evaluate(()=>{const f=CalculatorSuite.getFoundation(),p=f.read(),r=CalculatorSuite.getFrame().getResult();return {p,notes:f.getNotes(),frame:r.general,linked:CalculatorSuite.getState().linked};});
     assert.deepEqual([state.frame.width,state.frame.height],[6000,3000]);
     assert.deepEqual([state.p.signW,state.p.signH,state.p.bottom,state.p.windPoint,state.p.exposure],[6000,3000,3,'busan','D']);
@@ -36,7 +45,8 @@ browserTest('a new user goes from the place to the result in one flow without en
     assert.ok(Math.abs(state.p.extraKg-40*18)<1e-6,'product weight reaches the foundation');assert.equal(state.notes.weightExample,false);assert.equal(state.linked,true);
     // Result: four plain questions, the footing size and one place for every output.
     assert.equal(await page.locator('#guide-root .plain-card').count(),4);
-    assert.match(await page.locator('#guide-root .g-facts').innerText(),/기초 1개 크기/);
+    assert.ok(await page.locator('#guide-root .g-3d.big .g-3d-view polygon[data-kind="concrete"]').count()>0,'the result opens with the 3D example');
+    assert.match(await page.locator('#guide-root').innerText(),/기초 1개 크기/);
     const popup=context.waitForEvent('page');await page.click('[data-guide-click="suite-report"]');const tab=await popup;await tab.waitForLoadState();
     assert.match(await tab.locator('main').innerText(),/구조계산 의뢰 전 사전 검토 자료/);await tab.close();
     const download=page.waitForEvent('download');await page.click('[data-guide-click="suite-solidcraft"]');assert.match((await download).suggestedFilename(),/_SolidCraft\.json$/);

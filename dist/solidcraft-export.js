@@ -15,14 +15,15 @@
   const finite=(...v)=>v.every(Number.isFinite);
 
   function writer(){
-    const commands=[],bodies=new Map(),used=new Set();
+    // shapes: the same parts as plain boxes (cylinders as their square envelope) for the on-screen 3D preview.
+    const commands=[],bodies=new Map(),used=new Set(),shapes=[];
     const unique=name=>{let base=String(name).replace(/\s+/g,' ').trim()||'부재',out=base,i=2;while(used.has(out))out=`${base} (${i++})`;used.add(out);return out;};
     const own=(kind,name)=>{if(!bodies.has(kind))bodies.set(kind,[]);bodies.get(kind).push(name);};
     return {
-      commands,bodies,
-      box(kind,name,[x,y,z],[l,w,h]){
+      commands,bodies,shapes,
+      box(kind,name,[x,y,z],[l,w,h],color=null){
         if(!finite(x,y,z,l,w,h)||l<=0||w<=0||h<=0)return null;
-        const body=unique(name);
+        const body=unique(name);shapes.push({kind,name:body,x,y,z,l,w,h,color});
         commands.push({command:'solid.box',params:{corner:[round(x),round(y),round(z)],length:round(l),width:round(w),height:round(h),name:body,body_name:body}});
         own(kind,body);return body;
       },
@@ -30,7 +31,7 @@
       join(name,body,[x,y,z],[l,w,h]){commands.push({command:'solid.box',params:{corner:[round(x),round(y),round(z)],length:round(l),width:round(w),height:round(h),operation:'join',targets:[body],name:unique(name)}});},
       cylinder(kind,name,[x,y,z],diameter,height){
         if(!finite(x,y,z,diameter,height)||diameter<=0||height<=0)return null;
-        const body=unique(name);
+        const body=unique(name);shapes.push({kind,name:body,x:x-diameter/2,y:y-diameter/2,z,l:diameter,w:diameter,h:height,round:true});
         commands.push({command:'solid.cylinder',params:{diameter:round(diameter),height:round(height),base:[round(x),round(y),round(z)],axis:'Z',name:body,body_name:body}});
         own(kind,body);return body;
       },
@@ -45,7 +46,7 @@
     let count=0;
     for(const b of geometry.boxes){
       if(b.kind==='extra'||b.kind==='screen')continue;
-      if(w.box('steel',b.name,[b.x-width/2,b.z-front-depth/2,base+height-b.y-b.h],[b.w,b.d,b.h]))count++;
+      if(w.box('steel',b.name,[b.x-width/2,b.z-front-depth/2,base+height-b.y-b.h],[b.w,b.d,b.h],b.color))count++;
     }
     return count;
   }
@@ -121,8 +122,22 @@
     return {commands,members,foundation:found,bodies:[...w.bodies.values()].flat()};
   }
   const json=options=>JSON.stringify({commands:script(options).commands},null,1);
+  // On-screen 3D preview of the same model in Frame3D's axes (x right, y down from the top, z back from
+  // the front), so Frame3D.render can draw frame, posts, plates and footings together.
+  const COLORS={steel:'#8fb3c4',post:'#3f6f86',concrete:'#c9ced3',grout:'#9aa3ab'};
+  function scene(options){
+    const w=writer(),{frame=null,foundation=null}=options,base=foundation?foundation.p.bottom*1000:0;
+    if(frame?.geometry)frameMembers(w,frame.geometry,base);
+    if(foundation){const fp=frame?.result?.posts,plateTop=foundation.g.above+(foundation.p.groutThickness||0)+(foundation.p.plateThickness>0?foundation.p.plateThickness:20);foundationMembers(w,foundation,{postTop:fp?.length>0?plateTop+fp.length:Math.max(base,plateTop+1)});}
+    if(!w.shapes.length)return null;
+    const top=Math.max(...w.shapes.map(s=>s.z+s.h)),ground=top;
+    const boxes=w.shapes.map(s=>({x:s.x,y:top-s.z-s.h,z:s.y,w:s.l,h:s.h,d:s.w,kind:s.kind==='steel'&&s.color?'frame':s.kind,name:s.name,info:s.name,part:'',color:s.color||COLORS[s.kind]||'#9aa3ab'}));
+    const bounds={min:[0,0,0].map((_,i)=>Math.min(...boxes.map(b=>[b.x,b.y,b.z][i]))),max:[0,0,0].map((_,i)=>Math.max(...boxes.map(b=>[b.x+b.w,b.y+b.h,b.z+b.d][i])))};
+    const g=frame?.geometry?.general||{width:foundation.p.signW,height:foundation.p.signH,planes:1,depth:0};
+    return {boxes,bounds,general:g,groundY:ground,omitted:0,extraSamples:0,depthTieCount:0,memberCount:boxes.length};
+  }
   const HELP='SolidCraft(무료 3D CAD)에서 이 파일을 스크립트로 실행하면 3D 모델이 만들어집니다. 명령줄: solidcraft-cli run 파일.json --out 모델.step · 단위 mm, Z가 위, 지면(GL)=0, 전광판 정면이 −Y입니다. 형상 확인용이며 구조 검토 결과가 아닙니다.';
 
-  const api={MATERIALS,HELP,script,json};
+  const api={MATERIALS,HELP,script,json,scene};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.SolidCraftExport=api;
 })(typeof globalThis!=='undefined'?globalThis:this);
