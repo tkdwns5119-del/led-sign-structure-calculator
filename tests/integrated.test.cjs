@@ -39,5 +39,5 @@ test('complete bundle validates both halves without applying either',()=>{
   const calls=[],frame={validateProject:p=>{calls.push('frame');return P.migrate(p);}},foundation={validateProject:p=>{calls.push('foundation');if(p.invalid)throw Error('bad foundation');return S.clone(p);}};
   const input={format:'led-integrated-project',version:1,name:'통합',frame:P.createProject(),foundation:{invalid:true}};
   assert.throws(()=>S.validate(input,frame,foundation),/bad foundation/);assert.deepEqual(calls,['frame','foundation']);assert.equal(input.foundation.invalid,true);
-  input.foundation={project:{items:[]}};const clean=S.validate(input,frame,foundation);assert.equal(clean.view,'frame');assert.equal(clean.link,null);assert.notEqual(clean.frame,input.frame);
+  input.foundation={project:{items:[]}};const clean=S.validate(input,frame,foundation);assert.equal(clean.view,'guide');assert.equal(clean.guideStep,1);assert.equal(clean.link,null);assert.notEqual(clean.frame,input.frame);
 });

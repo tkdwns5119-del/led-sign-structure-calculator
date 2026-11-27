@@ -144,7 +144,7 @@
     // migration so later replacement at the same position cannot inherit review.
     if(link&&!link.itemId)link.itemId=foundation.project.items[link.active]?.id||null;
     const priceReview=raw.priceReview&&typeof raw.priceReview.source==='string'&&raw.priceReview.source.length<20000?{source:raw.priceReview.source,confirmed:raw.priceReview.confirmed===true,included:Array.isArray(raw.priceReview.included)?raw.priceReview.included.filter(x=>typeof x==='string').slice(0,30):[]}:null;
-    return {format:'led-integrated-project',version:1,name:String(raw.name||'전광판 통합 프로젝트').slice(0,80),view:['frame','foundation','overview'].includes(raw.view)?raw.view:'frame',frame,foundation,link,massReview:cleanReview(raw.massReview),installationCounts,priceReview,costReview:typeof raw.costReview==='string'&&raw.costReview.length<30000?raw.costReview:null};
+    return {format:'led-integrated-project',version:1,name:String(raw.name||'전광판 통합 프로젝트').slice(0,80),view:['guide','frame','foundation','overview'].includes(raw.view)?raw.view:'guide',guideStep:Number.isInteger(raw.guideStep)&&raw.guideStep>=1&&raw.guideStep<=4?raw.guideStep:1,frame,foundation,link,massReview:cleanReview(raw.massReview),installationCounts,priceReview,costReview:typeof raw.costReview==='string'&&raw.costReview.length<30000?raw.costReview:null};
   }
   const api={clone,postTransfer,transfer,fingerprint,legacyFingerprint,isLinked,effectiveStatus,governing,upliftReference,validate,itemKey,cleanCounts,status,dataStatus,aggregate,compareCandidates};root.CalculatorSuiteEngine=api;
   if(typeof module==='object'&&module.exports)module.exports=api;

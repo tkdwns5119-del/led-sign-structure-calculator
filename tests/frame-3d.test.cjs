@@ -39,7 +39,7 @@ async function withPage(fn,{suite=false,mobile=false}={}){
   page.on('pageerror',e=>errors.push(e.message));await context.route(/^https?:\/\//,route=>{requests.push(route.request().url());return route.abort();});
   try{
     await page.goto(pathToFileURL(path.join(root,suite?'전광판_구조물_기초_통합계산기.html':'dist/frame.html')).href);
-    if(suite)await page.waitForFunction(()=>CalculatorSuite?.getState().ready);
+    if(suite){await page.waitForFunction(()=>CalculatorSuite?.getState().ready);await page.evaluate(()=>CalculatorSuite.showView('frame'));}
     const ui=suite?await (await page.$('#frame-calculator')).contentFrame():page;
     await ui.waitForFunction(()=>Frame3D&&FrameUI.getResult());await ui.locator('#frame-3d-tools summary').click();await fn({page,ui,context});assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);
   }finally{await context.close();}

@@ -86,7 +86,8 @@
     if(!notes.groundKnown)list.push({topic:'땅(지반)',text:`땅이 버티는 값(허용지지력 ${p.qa} kPa)이 예시값입니다. 지반조사 결과로 바꿔야 합니다.`});
     if(r.l?.windDetail)list.push({topic:'바람(풍하중)',text:'지도에서 읽은 지역 기본풍속의 예비값입니다. 정확한 설치 위치·주변 지형을 의뢰 시 알려 주세요.'});
     else if(notes.windExample||!notes.windManual)list.push({topic:'바람(풍하중)',text:'풍압이 예시값입니다. 설치 지역을 고르거나 설계 풍압을 입력하세요.'});
-    if(!(p.panelKgM2>0))list.push({topic:'전광판 무게',text:'전광판 제품 무게가 0입니다. 제조사 자료의 무게를 넣어야 결과가 맞습니다.'});
+    if(notes.weightExample)list.push({topic:'전광판 무게',text:'제품 무게를 몰라 예시값(1 m²당 45 kg)으로 계산했습니다. 제조사 자료의 무게로 바꿔야 합니다.'});
+    else if(!(p.panelKgM2*p.signW*p.signH/1e6+p.extraKg>0))list.push({topic:'전광판 무게',text:'전광판 제품 무게가 0입니다. 제조사 자료의 무게를 넣어야 결과가 맞습니다.'});
     if(!(p.postKg>0))list.push({topic:'기둥·프레임 무게',text:'기둥·프레임 무게가 0입니다. 구조물 계산 결과를 적용하거나 직접 넣으세요.'});
     if(p.columnShape==='schematic'||!(p.columnThickness>0))list.push({topic:'기둥 규격',text:'기둥 종류·두께가 없어 기둥·앵커·바닥판은 계산하지 않았습니다.'});
     else if(!(p.anchorEmbed>0))list.push({topic:'앵커 묻힘 깊이',text:'앵커 묻힘 깊이가 없어 앵커는 계산하지 않았습니다.'});

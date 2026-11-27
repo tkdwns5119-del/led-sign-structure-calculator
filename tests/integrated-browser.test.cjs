@@ -13,14 +13,14 @@ before(async()=>{
 after(async()=>{await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));});
 async function pageFor(url=origin){
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true}),page=await context.newPage();
-  page.on('pageerror',e=>problems.push(e.message));await page.goto(url);await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);await page.frameLocator('#frame-calculator').locator('#frame-input-detailed').click();return {context,page};
+  page.on('pageerror',e=>problems.push(e.message));await page.goto(url);await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);await page.evaluate(()=>CalculatorSuite.showView('frame'));await page.frameLocator('#frame-calculator').locator('#frame-input-detailed').click();return {context,page};
 }
 async function applyTransfer(page){await page.click('#suite-transfer');await page.click('#transfer-confirm');}
 const browserTest=(name,fn)=>test(name,{skip:!playwright?'Playwright is not installed':false},fn);
 browserTest('offline single HTML loads both isolated calculators without any network request',async()=>{
   const context=await browser.newContext(),page=await context.newPage(),network=[];page.on('pageerror',e=>problems.push(e.message));
   await context.route(/^https?:\/\//,route=>{network.push(route.request().url());return route.abort();});
-  await page.goto(pathToFileURL(path.join(root,'전광판_구조물_기초_통합계산기.html')).href);await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);
+  await page.goto(pathToFileURL(path.join(root,'전광판_구조물_기초_통합계산기.html')).href);await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);await page.evaluate(()=>CalculatorSuite.showView('frame'));
   assert.deepEqual(network,[]);assert.equal(await page.locator('#suite-loading').isHidden(),true);
   const state=await page.evaluate(()=>({frame:CalculatorSuite.getFrame().getResult().totalWeight,foundation:CalculatorSuite.getFoundation().getResult().p.signW}));
   assert.equal(state.frame,70.975);assert.equal(state.foundation,4000);await applyTransfer(page);
@@ -67,16 +67,16 @@ browserTest('both calculators retain XLSX and foundation DXF export inside the i
   const {context,page}=await pageFor();const frame=page.frameLocator('#frame-calculator');await frame.locator('[data-tab="report"]').click();
   let pending=page.waitForEvent('download');await frame.locator('[data-action="xlsx"]').click();let d=await pending;assert.ok(fs.readFileSync(await d.path()).subarray(0,2).equals(Buffer.from('PK')));
   // The embedded foundation's single-calculator exports live in the suite's work menu (2026-10-21).
-  await page.click('#tab-foundation');await page.locator('.project-menu summary').click();
+  await page.click('#tab-foundation');await page.locator('#output-menu summary').click();
   pending=page.waitForEvent('download');await page.click('[data-foundation-export="xlsx"]');d=await pending;assert.ok(fs.readFileSync(await d.path()).subarray(0,2).equals(Buffer.from('PK')));
-  await page.locator('.project-menu summary').click();pending=page.waitForEvent('download');await page.click('[data-foundation-export="drawing"]');d=await pending;assert.match(fs.readFileSync(await d.path(),'utf8'),/AC1015/);await context.close();
+  await page.locator('#output-menu summary').click();pending=page.waitForEvent('download');await page.click('[data-foundation-export="drawing"]');d=await pending;assert.match(fs.readFileSync(await d.path(),'utf8'),/AC1015/);await context.close();
 });
 browserTest('keyboard tabs, legacy imports, responsive layout and new-work backup remain usable',async()=>{
   const {context,page}=await pageFor();await page.locator('#tab-frame').focus();await page.keyboard.press('ArrowRight');assert.equal(await page.locator('#tab-foundation').getAttribute('aria-selected'),'true');
   await page.keyboard.press('End');assert.equal(await page.locator('#panel-overview').isVisible(),true);
   const kept=await page.evaluate(()=>{const api=CalculatorSuite,f=api.getFoundation(),raw=JSON.parse(JSON.stringify(f.snapshot()));raw.project.items[0].p.signW=7000;api.load(raw);const original=f.read().signW;const p=api.getFrame().getProject();p.general.width=4500;api.load(p);return {original,after:f.read().signW};});
   assert.equal(kept.original,7000);assert.equal(kept.after,7000);
-  const pending=page.waitForEvent('download');await page.locator('.project-menu summary').click();await page.click('#suite-new');const backup=JSON.parse(fs.readFileSync(await (await pending).path(),'utf8'));assert.equal(backup.foundation.project.items[0].p.signW,7000);
+  const pending=page.waitForEvent('download');await page.locator('#work-menu summary').click();await page.click('#suite-new');const backup=JSON.parse(fs.readFileSync(await (await pending).path(),'utf8'));assert.equal(backup.foundation.project.items[0].p.signW,7000);
   assert.equal(await page.evaluate(()=>CalculatorSuite.getFoundation().read().signW),4000);
   await page.setViewportSize({width:390,height:844});await page.click('#tab-overview');
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);assert.equal(overflow,false);assert.equal(await page.locator('#suite-transfer').isVisible(),false,'the transfer bar is hidden on the mobile summary');

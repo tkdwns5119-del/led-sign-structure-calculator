@@ -3,8 +3,8 @@
   const E=CalculatorSuiteEngine,$=id=>document.getElementById(id),KEY='led-integrated-project-v1',copy=E.clone;
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fmt=(n,d=2)=>Number.isFinite(n)?n.toLocaleString('ko-KR',{maximumFractionDigits:d}):'—';
-  const frames={frame:$('frame-calculator'),foundation:$('foundation-calculator')},views=['frame','foundation','overview'];
-  let frame,foundation,foundationEngine,estimate,view='frame',link=null,massReview=null,installationCounts={},priceReview=null,costReview=null;
+  const frames={frame:$('frame-calculator'),foundation:$('foundation-calculator')},views=['guide','frame','foundation','overview'];
+  let frame,foundation,foundationEngine,estimate,view='guide',link=null,massReview=null,installationCounts={},priceReview=null,costReview=null;
   let ready=false,loading=false,syncingName=false,saveTimer,updateTimer,storageWritable=true,countKey=null,countPending=false,aggregateCache=null,candidates=null,previewSource=null;
   const row=(label,value,id='',style='')=>`<div><dt>${label}</dt><dd${id?` id="${id}"`:''}${style?` class="${style}"`:''}>${value}</dd></div>`;
   function message(text,error=false){$('suite-message').innerHTML=text?`<button type="button" data-dismiss aria-label="안내 닫기">×</button>${esc(text)}`:'';$('suite-message').hidden=!text;$('suite-message').classList.toggle('error',error);}
@@ -19,7 +19,7 @@
   function capture(){
     flush();if(!valid())throw Error('두 계산기의 치수·중량·단가 입력 오류를 먼저 수정하세요.');
     const f=foundation.snapshot();installationCounts=E.cleanCounts(installationCounts,f);
-    return {format:'led-integrated-project',version:1,name:$('suite-name').value.trim()||'전광판 통합 프로젝트',view,frame:frame.getProject(),foundation:copy(f),link:copy(link),massReview:copy(massReview),installationCounts:copy(installationCounts),priceReview:copy(priceReview),costReview};
+    return {format:'led-integrated-project',version:1,name:$('suite-name').value.trim()||'전광판 통합 프로젝트',view,guideStep:window.SuiteGuide?.getStep()||1,frame:frame.getProject(),foundation:copy(f),link:copy(link),massReview:copy(massReview),installationCounts:copy(installationCounts),priceReview:copy(priceReview),costReview};
   }
   function saveLocal(){
     if(!ready||loading||!storageWritable)return;
@@ -79,7 +79,7 @@
     if(!valid())$('suite-save-status').textContent='입력 확인 필요 · 마지막 정상 저장본 유지';overview(r,f);
   }
   function changed(){if(loading)return;clearTimeout(updateTimer);updateTimer=setTimeout(()=>{update();scheduleSave();},30);}
-  function showView(next){if(!views.includes(next))return;if(ready){try{flush();}catch(e){message(e.message,true);}}view=next;document.body.dataset.view=next;for(const name of views){$('panel-'+name).hidden=name!==next;$('tab-'+name).setAttribute('aria-selected',String(name===next));$('tab-'+name).tabIndex=name===next?0:-1;}if(ready){update();scheduleSave();}}
+  function showView(next){if(!views.includes(next))return;if(ready){try{flush();}catch(e){message(e.message,true);}}view=next;document.body.dataset.view=next;for(const name of views){$('panel-'+name).hidden=name!==next;$('tab-'+name).setAttribute('aria-selected',String(name===next));$('tab-'+name).tabIndex=name===next?0:-1;}for(const menu of document.querySelectorAll('.project-menu[open]'))menu.open=false;if(ready){update();scheduleSave();if(next==='guide')window.SuiteGuide?.render();}}
   function transferWarnings(r,p,keepProduct){
     const q=r.general.quantity,current=p.signW*p.signH/1e6*p.panelKgM2+p.postKg+p.extraKg,product=r.cabinetWeight/q,posts=(r.frameWeight+r.accessoryWeight)/q;
     const next=keepProduct?r.totalWeight/q-product+r.general.width*r.general.height/1e6*p.panelKgM2:r.totalWeight/q,list=[];
@@ -114,6 +114,8 @@
   function applyFrame(flags={}){
     flush();if(!valid())throw Error('입력 오류를 먼저 수정하세요.');const r=frame.getResult(),keepProduct=flags.keepProduct===true&&r.cabinetWeight<=0,patch=E.transfer(r,foundationEngine.limits,{keepProduct}),next=copy(foundation.snapshot());Object.assign(next.project.items[next.project.active].p,patch);
     const verified=foundation.validateProject(next);foundation.loadProject(verified);link={source:E.fingerprint(frame.getProject(),patch),active:verified.project.active,itemId:verified.project.items[verified.project.active].id,appliedAt:new Date().toISOString(),keepProduct};massReview={source:massSource(r,patch),product:flags.product===true,posts:flags.posts===true,accessories:flags.accessories===true};candidates=null;
+    // silent: the guided steps apply the frame in the background without switching screens.
+    if(flags.silent){update();scheduleSave();return copy(patch);}
     showView('foundation');update();saveLocal();const applied=verified.project.items[verified.project.active].p;message(`현재 기초에 ${fmt(r.general.width)} × ${fmt(r.general.height)} mm와 대당 ${fmt(applied.signW*applied.signH/1e6*applied.panelKgM2+applied.postKg+applied.extraKg,3)} kg을 적용했습니다.${keepProduct?' 제품 중량은 기초의 기존 값을 유지했습니다.':''}${patch.columnShape?` 지주 단면 ${estimate.column(applied).label}을 기둥 검토에 반영했습니다. 결과는 기초 검토 표의 지주 항목에서 확인하세요.`:''} 중량 구성 확인 상태는 전체 요약에 표시됩니다.`);return copy(patch);
   }
   function load(raw){
@@ -125,7 +127,7 @@
       storageWritable=true;showView(isFrame?'frame':'foundation');update();saveLocal();message('기존 '+(isFrame?'구조물':'기초')+' 작업을 불러왔습니다. 연동값과 확인 상태를 다시 확인하세요.');return valid()?capture():null;
     }
     else throw Error('통합 작업 또는 기존 구조물·기초 계산기의 JSON 파일을 선택하세요.');
-    loading=true;try{frame.loadProject(verified.frame);foundation.loadProject(verified.foundation);link=verified.link;massReview=verified.massReview;installationCounts=verified.installationCounts;priceReview=verified.priceReview;costReview=verified.costReview;countKey=null;countPending=false;candidates=null;aggregateCache=null;syncName(verified.name);view=verified.view;}finally{loading=false;}
+    loading=true;try{frame.loadProject(verified.frame);foundation.loadProject(verified.foundation);link=verified.link;massReview=verified.massReview;installationCounts=verified.installationCounts;priceReview=verified.priceReview;costReview=verified.costReview;countKey=null;countPending=false;candidates=null;aggregateCache=null;syncName(verified.name);view=verified.view;window.SuiteGuide?.setStep(verified.guideStep);}finally{loading=false;}
     storageWritable=true;showView(view);update();saveLocal();message('구조물·기초·단가·반복 수량·확인 상태를 함께 불러왔습니다.');return capture();
   }
   function fileDownload(data,name,type){const url=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=url;a.download=($('suite-name').value.trim()||'전광판 통합 프로젝트').replace(/[\\/:*?"<>|]/g,'_')+name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
@@ -183,7 +185,7 @@
   $('suite-solidcraft').addEventListener('click',()=>safe(()=>{capture();const fw=frames.frame.contentWindow,r=frame.getResult(),project=frame.getProject(),f=foundation.getResult();if(!r&&!f)throw Error('구조물 또는 기초 입력 오류를 먼저 수정하세요.');const geometry=r?fw.Frame3D.geometry(project,r,{limit:5000}):null;fileDownload(fw.SolidCraftExport.json({frame:geometry?{geometry,project,result:r}:null,foundation:f}),'_SolidCraft.json','application/json');message('3D 파일을 저장했습니다. '+fw.SolidCraftExport.HELP);}));$('suite-print').addEventListener('click',()=>safe(()=>{capture();showView('overview');update();window.print();}));
   function initialize(){
     if(!frame||!foundation||ready)return;ready=true;$('suite-loading').hidden=true;const build=globalThis.CalculatorSuiteBuild;if(build?.label){$('suite-build').textContent=build.label;$('suite-build-menu').textContent=build.label;}$('suite-load').disabled=false;$('suite-new').disabled=false;
-    window.CalculatorSuite={snapshot:capture,load,applyFrame,showView,reportSheets,exportReport,getState:()=>({ready,view,linked:$('suite-link-status').dataset.state==='linked'}),getFrame:()=>frame,getFoundation:()=>foundation};
+    window.CalculatorSuite={snapshot:capture,load,applyFrame,showView,reportSheets,exportReport,message,update,scheduleSave,frames,engine:()=>foundationEngine,getState:()=>({ready,view,linked:$('suite-link-status').dataset.state==='linked'}),getFrame:()=>frame,getFoundation:()=>foundation};
     let saved;try{saved=localStorage.getItem(KEY);}catch{storageWritable=false;}
     if(saved){try{load(JSON.parse(saved));}catch(error){storageWritable=false;message('저장된 통합 작업을 읽지 못했습니다. 기존 저장본을 보존합니다. '+error.message,true);}}
     else syncName($('suite-name').value);update();if(storageWritable)scheduleSave();

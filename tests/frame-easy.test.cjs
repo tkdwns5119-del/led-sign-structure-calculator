@@ -22,7 +22,7 @@ async function withPage(fn,{suite=false,offline=false,viewport={width:1440,heigh
   if(offline)await context.route(/^https?:\/\//,route=>{network.push(route.request().url());return route.abort();});
   try{
     await page.goto(offline?pathToFileURL(path.join(root,'전광판_구조물_기초_통합계산기.html')).href:origin+(suite?'/':'/frame.html'));
-    if(suite||offline)await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);
+    if(suite||offline){await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);await page.evaluate(()=>CalculatorSuite.showView('frame'));}
     const ui=suite||offline?await (await page.$('#frame-calculator')).contentFrame():page;
     await ui.waitForFunction(()=>window.FrameUX&&window.FrameUI?.getResult());
     await fn({page,ui,context});assert.deepEqual(errors,[]);if(offline)assert.deepEqual(network,[]);

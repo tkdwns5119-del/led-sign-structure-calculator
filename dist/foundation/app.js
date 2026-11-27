@@ -116,8 +116,10 @@
   function createItemId(){return window.crypto?.randomUUID?.()||`foundation-${Date.now().toString(36)}-${(++itemSequence).toString(36)}-${Math.random().toString(36).slice(2,8)}`;}
   let result=null,timer=null,lastInputs=null,prices={...C.defaultPrices},project={name:'전광판 기초 프로젝트',active:0,items:[{id:createItemId(),name:'기초 1',p:{...E.defaults}}]},projectResults=[];
   const invalidRates=new Map();
-  function cleanNotes(n={}){if(!n||typeof n!=='object')n={};return {groundKnown:n.groundKnown===true,windManual:n.windManual===true,windExample:n.windExample===true,inputMode:n.inputMode==='detailed'?'detailed':'simple'};}
+  function cleanNotes(n={}){if(!n||typeof n!=='object')n={};return {groundKnown:n.groundKnown===true,windManual:n.windManual===true,windExample:n.windExample===true,weightExample:n.weightExample===true,inputMode:n.inputMode==='detailed'?'detailed':'simple'};}
   function getNotes(){return cleanNotes(project.items[project.active].ui);}
+  // Set several inputs (and optionally the confirmation notes) at once, then recalculate: used by the suite's guided steps.
+  function patch(values={},notes=null){flush();fill({...read(),...values});if(notes)project.items[project.active].ui=cleanNotes({...getNotes(),...notes});recalc();return result;}
   function notifyUX(){window.FoundationUX?.updated(result);if(typeof window.CustomEvent==='function')window.dispatchEvent(new window.CustomEvent('calculatorchange'));}
   function recalc(){
     clearTimeout(timer);timer=null;
@@ -447,7 +449,7 @@
   $('report').addEventListener('click',()=>{const html=reportHTML();if(!html)return;toast(openReport(html)?'의뢰용 참고자료를 새 탭에 열었습니다. 그 화면에서 인쇄·PDF로 저장하세요.':'팝업이 막혀 의뢰용 참고자료를 HTML 파일로 저장했습니다.');});
   $('print').addEventListener('click',()=>{if(flush()){const restore=window.FoundationUX?.preparePrint();window.print();restore?.();}});
   function toast(msg){$('toast').textContent=msg;$('toast').hidden=false;window.FoundationMotion?.reveal($('toast'),'switch','label');setTimeout(()=>$('toast').hidden=true,3200);}
-  window.FoundationUI={read,recalc,flush,reportHTML,openReport,setProjectName,selectPoint,snapshot,validateProject,loadProject,getResult:()=>result,getExcelPacket,getNotes,setNotes:patch=>{project.items[project.active].ui=cleanNotes({...getNotes(),...patch});persist();notifyUX();},hasRateErrors:()=>invalidRates.size>0};
+  window.FoundationUI={read,recalc,flush,patch,reportHTML,openReport,setProjectName,selectPoint,snapshot,validateProject,loadProject,getResult:()=>result,getExcelPacket,getNotes,setNotes:patch=>{project.items[project.active].ui=cleanNotes({...getNotes(),...patch});persist();notifyUX();},hasRateErrors:()=>invalidRates.size>0};
   window.addEventListener?.('beforeunload',flush);window.addEventListener?.('pagehide',flush);window.document?.addEventListener?.('visibilitychange',()=>{if(window.document.visibilityState==='hidden')flush();});
   if(STORE.embedded){const summary=document.querySelector('.file-tools>summary');if(summary)summary.textContent='기초 단독 출력';}
   itemMenu();fill(E.defaults);

@@ -28,7 +28,7 @@ function build(){
   foundation=foundation.replace('href="wind-map.png"',()=>`href="data:image/png;base64,${fs.readFileSync(path.join(foundationDir,'wind-map.png')).toString('base64')}"`);
   const serialized=JSON.stringify({frame,foundation}).replace(/</g,'\\u003c').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
   fs.writeFileSync(path.join(dist,'suite-sources.js'),'globalThis.CalculatorSuiteSources='+serialized+';\nglobalThis.CalculatorSuiteBuild='+JSON.stringify(buildInfo())+';\n','utf8');
-  const standalone=inlinePage(dist,'index.html',['suite.css'],['suite-engine.js','suite-sources.js','suite.js'],'');
+  const standalone=inlinePage(dist,'index.html',['suite.css','guide.css'],['suite-engine.js','suite-sources.js','suite.js','guide.js'],'');
   const target=path.join(root,'전광판_구조물_기초_통합계산기.html');fs.writeFileSync(target,standalone,'utf8');
   console.log(`통합 계산기 생성: ${target}`);return {frame,foundation,standalone,target};
 }

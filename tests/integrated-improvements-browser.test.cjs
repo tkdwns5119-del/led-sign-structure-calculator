@@ -27,7 +27,7 @@ async function withPage(fn,{offline=false,viewport={width:1440,height:1000}}={})
   if(offline)await context.route(/^https?:\/\//,route=>{network.push(route.request().url());return route.abort();});
   try{
     await page.goto(offline?pathToFileURL(path.join(root,'전광판_구조물_기초_통합계산기.html')).href:origin);
-    await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);
+    await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);await page.evaluate(()=>CalculatorSuite.showView('frame'));
     await page.frameLocator('#frame-calculator').locator('#frame-input-detailed').click();
     await fn(page,context);assert.deepEqual(errors,[]);if(offline)assert.deepEqual(network,[]);
   }finally{await context.close();}
@@ -39,7 +39,7 @@ async function immediateReload(page,childId,inputId,value){
     const child=document.getElementById(childId).contentWindow,input=child.document.getElementById(inputId);
     input.focus();input.value=value;input.dispatchEvent(new child.Event('input',{bubbles:true}));window.location.reload();
   },{childId,inputId,value})]);
-  await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);
+  await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);await page.evaluate(()=>CalculatorSuite.showView('frame'));
 }
 async function waitSummary(page,pattern){
   await page.waitForFunction(source=>new RegExp(source).test(document.getElementById('suite-overview').innerText),pattern.source);
@@ -77,7 +77,7 @@ browserTest('common project name reaches both native exports without requiring a
   const frame=page.frameLocator('#frame-calculator');await frame.locator('[data-tab="report"]').click();
   let pending=page.waitForEvent('download');await frame.locator('[data-action="xlsx"]').click();let nativeExport=await pending;
   assert.ok(fs.readFileSync(await nativeExport.path()).includes(Buffer.from(raw.name)),'structure XLSX contains the common project name');
-  await page.click('#tab-foundation');await page.locator('.project-menu summary').click();
+  await page.click('#tab-foundation');await page.locator('#output-menu summary').click();
   pending=page.waitForEvent('download');await page.click('[data-foundation-export="xlsx"]');nativeExport=await pending;
   assert.ok(fs.readFileSync(await nativeExport.path()).includes(Buffer.from(raw.name)),'foundation XLSX contains the common project name');
   await page.reload();await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);

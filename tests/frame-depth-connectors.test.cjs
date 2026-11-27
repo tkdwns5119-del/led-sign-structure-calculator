@@ -55,7 +55,7 @@ test('offline UI calculates, draws, exports and transfers automatic ties and pre
   const context=await browser.newContext({viewport:{width:1440,height:1100},acceptDownloads:true}),page=await context.newPage(),errors=[],network=[];
   page.on('pageerror',e=>errors.push(e.message));await context.route(/^https?:\/\//,route=>{network.push(route.request().url());return route.abort();});
   try{
-    await page.goto(pathToFileURL(path.join(root,'전광판_구조물_기초_통합계산기.html')).href);await page.waitForFunction(()=>CalculatorSuite.getState().ready);
+    await page.goto(pathToFileURL(path.join(root,'전광판_구조물_기초_통합계산기.html')).href);await page.waitForFunction(()=>CalculatorSuite.getState().ready);await page.evaluate(()=>CalculatorSuite.showView('frame'));
     const ui=await (await page.$('#frame-calculator')).contentFrame();await ui.locator('[data-frame-shape="2"]').click();
     await ui.locator('[data-path="general.quantity"]').fill('3');await ui.locator('#frame-step-2').click();await ui.locator('#frame-side-settings summary').click();
     assert.equal(await ui.locator('[data-path="general.verticalDepthTies"]').isChecked(),true);assert.match(await ui.locator('#frame-depth-tie-info').innerText(),/6개\/대.*18개/);assert.ok(await ui.locator('polygon[data-kind="tie"]').count());

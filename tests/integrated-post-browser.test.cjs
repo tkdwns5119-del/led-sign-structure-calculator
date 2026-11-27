@@ -17,7 +17,7 @@ browserTest('a post marked in the frame tab transfers its pipe section to the fo
   const context=await browser.newContext({viewport:{width:1440,height:1000}}),errors=[];
   context.on('page',page=>page.on('pageerror',e=>errors.push(e.message)));
   try{
-    const page=await context.newPage();await page.goto(suiteURL);await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);
+    const page=await context.newPage();await page.goto(suiteURL);await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);await page.evaluate(()=>CalculatorSuite.showView('frame'));
     const frame=page.frames().find(f=>f.name()==='frame-calculator'),foundation=page.frames().find(f=>f.name()==='foundation-calculator');
     await frame.evaluate(()=>{const p=FrameUI.getProject();p.ui.inputMode='detailed';p.materials.push(FramePlanner.material('p318_5','m2'));p.extras=[{id:'post1',name:'지주',materialId:'m2',rotation:0,length:3000,quantity:1,post:true}];FrameUI.loadProject(p);});
     assert.equal(await frame.locator('[data-path="extras.0.post"]').first().isChecked(),true);

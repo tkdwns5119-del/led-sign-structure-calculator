@@ -20,7 +20,7 @@ async function withContext(fn,viewport={width:1440,height:1000}){
   try{await fn(context);}finally{await context.close();}
   assert.deepEqual(errors,[]);
 }
-async function openSuite(context){const page=await context.newPage();page.on('pageerror',()=>{});await page.goto(suiteURL);await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);return page;}
+async function openSuite(context){const page=await context.newPage();page.on('pageerror',()=>{});await page.goto(suiteURL);await page.waitForFunction(()=>window.CalculatorSuite?.getState().ready);await page.evaluate(()=>CalculatorSuite.showView('frame'));return page;}
 const embedded=page=>page.frames().find(f=>f.name()==='foundation-calculator');
 async function setField(frame,id,value){await frame.evaluate(([id,value])=>{const e=document.getElementById(id);e.value=String(value);e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));},[id,value]);}
 
@@ -34,7 +34,7 @@ browserTest('standalone and integrated foundation screens keep separate autosave
   assert.equal(await solo.evaluate(()=>FoundationUI.read().bottom),7.7,'integrated edits do not overwrite the standalone save');
   const keys=await solo.evaluate(()=>Object.keys(localStorage).sort());
   assert.ok(keys.includes('foundation-project-v7'));assert.ok(keys.includes('led-suite-foundation-project-v7'));assert.ok(!keys.includes('foundation-project-v4'));
-  assert.match(await suite.locator('#suite-build').innerText(),/구조물 V\d+ · 기초 V\d+ · \d{4}-\d{2}-\d{2} 빌드/);
+  assert.match(await suite.locator('#suite-build').textContent(),/구조물 V\d+ · 기초 V\d+ · \d{4}-\d{2}-\d{2} 빌드/);
 }));
 
 browserTest('example data keeps the headline amber and per-board transfer warns about missing product weight',()=>withContext(async context=>{
@@ -63,7 +63,7 @@ browserTest('integrated workbook adds foundation rebar and check sheets with rou
   const summary=sheets[0].rows.map(r=>String(r[1]));assert.ok(summary.every(v=>!/ \/ $/.test(v)),'no dangling separators');
   assert.ok(sheets.find(s=>s.name==='기초철근').rows.some(r=>r[2]==='F1'));
   assert.ok(sheets.find(s=>s.name==='기초검토').rows.some(r=>/0\.9D/.test(r[1])));
-  const csv=await Promise.all([page.waitForEvent('download'),page.click('#suite-csv')]).then(([d])=>d.path()).then(p=>fs.readFileSync(p,'utf8'));
+  const csv=await Promise.all([page.waitForEvent('download'),page.click('#output-menu summary').then(()=>page.click('#suite-csv'))]).then(([d])=>d.path()).then(p=>fs.readFileSync(p,'utf8'));
   assert.doesNotMatch(csv,/\d\.\d*0000000\d/);
 }));
 
@@ -82,7 +82,7 @@ browserTest('mobile keeps most of the screen for inputs and hides embedded save 
     assert.ok(top<=180,`${view} workspace starts at ${top}px`);
   }
   assert.equal(await embedded(page).evaluate(()=>getComputedStyle(document.querySelector('body>header')).display),'none','the embedded foundation has no second save bar');
-  await page.locator('.project-menu summary').click();
+  await page.locator('#output-menu summary').click();
   const [download]=await Promise.all([page.waitForEvent('download'),page.click('[data-foundation-export="xlsx"]')]);
   assert.match(download.suggestedFilename(),/\.xlsx$/);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
